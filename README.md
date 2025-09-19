@@ -16,6 +16,19 @@ This project is a Streamlit web application that allows users to ask questions i
 *   A Supabase account (or any PostgreSQL database)
 *   A Google AI API Key
 
+## Getting Credentials
+
+### Supabase
+1.  Go to [supabase.com](https://supabase.com) and create a free account.
+2.  Create a new project.
+3.  Navigate to **Project Settings** > **Database**.
+4.  Under **Connection string**, copy the **URI**. This will be your `DATABASE_URL`.
+
+### Google AI (for Gemini API)
+1.  Go to [Google AI Studio](https://makersuite.google.com/).
+2.  Log in with your Google account.
+3.  Click on "**Get API key**" to generate a new key. This will be your `GOOGLE_API_KEY`.
+
 ## Setup and Installation
 
 1.  **Clone the repository (optional):**
