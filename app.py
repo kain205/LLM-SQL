@@ -24,10 +24,30 @@ engine = create_engine(DATABASE_URL)
 # log file for analytics
 log_path = "logs/results.jsonl"
 os.makedirs(os.path.dirname(log_path), exist_ok= True)
+def _json_serializer(obj):
+    """
+    A simple "translator" that tells json.dumps how to handle a ChatMessage object.
+    """
+    if isinstance(obj, ChatMessage):
+        # Convert the ChatMessage into a simple dictionary
+        return {
+            "content": obj.text,
+            "role": obj.role.name, # .name converts the enum (e.g., ChatRole.USER) to a string ("USER")
+            "meta": obj.meta
+        }
+    # If it's not a ChatMessage, raise an error to let json.dumps handle it.
+    raise TypeError(f"Object of type '{type(obj).__name__}' is not JSON serializable")
+
 def save_result(data: dict, path: str):
-    data = str(data)
-    with open(path, "a", encoding = "utf-8") as f:
-        f.write(json.dumps(data, ensure_ascii= False) + "\n")
+    """
+    Saves the dictionary to a JSONL file, correctly handling ChatMessage objects.
+    """
+    # 1. REMOVE the line: data = str(data)
+
+    # 2. Simply pass the dictionary directly to json.dumps,
+    #    using our "translator" function for any special objects.
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(data, default=_json_serializer, ensure_ascii=False) + "\n")
 
 def fetch_all_violations():
     with engine.connect() as connection:
