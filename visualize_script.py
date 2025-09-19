@@ -1,93 +1,126 @@
-# visualize.py
-
-import pandas as pd
+import json
 import re
+from pathlib import Path
+import pandas as pd
 
-def parse_log_line(line: str) -> dict:
-    """Sử dụng regex để trích xuất thông tin chính từ một dòng log phức tạp."""
-    
-    # 1. Trích xuất câu hỏi của người dùng
-    question_match = re.search(r"Question: (.*?)\\n", line)
-    question = question_match.group(1).strip() if question_match else "N/A"
-    
-    # 2. Xác định luồng xử lý (route) và lấy dữ liệu tương ứng
-    if "'router': {'sql':" in line:
-        route = "✅ SQL"
-        
-        # === PHẦN SỬA LỖI BẮT ĐẦU ===
-        # Thay đổi regex để lấy SQL từ vị trí đáng tin cậy hơn trong log
-        sql_match = re.search(r"'router': {'sql': \['(.*?)'\]}", line, re.DOTALL)
-        
-        if sql_match:
-            # Lấy nội dung và thay thế ký tự xuống dòng `\\n` thành `\n` thật
-            sql_query = sql_match.group(1).strip().replace('\\n', '\n')
-        else:
-            sql_query = "Không tìm thấy SQL."
-        # === PHẦN SỬA LỖI KẾT THÚC ===
 
-        # Trích xuất câu trả lời cuối cùng
-        final_answer_match = re.search(r"'llm_explainer'.*?text='(.*?)'", line, re.DOTALL)
-        final_answer = final_answer_match.group(1).strip().replace('\\n', '<br>') if final_answer_match else "N/A"
+def _iter_json_objects(filepath: str | Path):
+    with open(filepath, "r", encoding="utf-8") as f:
+        text = f.read()
+    dec = json.JSONDecoder()
+    i, n = 0, len(text)
+    while i < n:
+        while i < n and text[i].isspace():
+            i += 1
+        if i >= n:
+            break
+        obj, end = dec.raw_decode(text, i)
+        yield obj
+        i = end
 
-    elif "'router': {'no_answer':" in line:
-        route = "❌ No Answer"
-        sql_query = "N/A"
-        
-        # Trích xuất lý do không trả lời được
-        no_answer_match = re.search(r"'no_answer': '(.*?)'", line)
-        final_answer = no_answer_match.group(1).strip() if no_answer_match else "N/A"
-        
-    else:
-        route = "❓ Unknown"
-        sql_query = "N/A"
-        final_answer = "N/A"
-        
+
+_question_re = re.compile(r"Question:\s*(.+)", re.IGNORECASE)
+
+
+def _extract_question(prompt_content: str) -> str:
+    if not prompt_content:
+        return "N/A"
+    m = _question_re.search(prompt_content)
+    return m.group(1).strip() if m else prompt_content.strip()
+
+
+_code_fence_re = re.compile(r"```(?:sql)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
+
+
+def _clean_sql(text: str) -> str:
+    if not text:
+        return ""
+    m = _code_fence_re.search(text)
+    return (m.group(1) if m else text).strip()
+
+
+def _first(lst, default=""):
+    return lst[0] if isinstance(lst, list) and lst else default
+
+
+def _parse_entry(obj: dict) -> dict:
+    # Prompt -> Question
+    prompt_blocks = (((obj.get("prompt") or {}).get("prompt")) or [])
+    prompt_content = prompt_blocks[0].get("content") if prompt_blocks else ""
+    question = _extract_question(prompt_content)
+
+    # LLM draft SQL (raw assistant reply)
+    llm_replies = ((obj.get("llm") or {}).get("replies")) or []
+    llm_text = (llm_replies[0].get("content") or "").strip() if llm_replies else ""
+    llm_sql = _clean_sql(llm_text)
+    llm_meta = (llm_replies[0].get("meta") or {}) if llm_replies else {}
+    usage = llm_meta.get("usage") or {}
+
+    # Router decision
+    router = obj.get("router") or {}
+    route = "sql" if "sql" in router else ("no_answer" if "no_answer" in router else "unknown")
+
+    # SQL executor
+    sql_q = obj.get("sql_querier") or {}
+    query_result = _first(sql_q.get("results"))
+
+    # Explainer
+    expl = obj.get("llm_explainer") or {}
+    expl_replies = expl.get("replies") or []
+    explanation = (expl_replies[0].get("content") or "").strip() if expl_replies else ""
+
     return {
-        "Câu hỏi": question,
-        "Luồng xử lý": route,
-        "SQL được tạo": sql_query,
-        "Câu trả lời cuối cùng": final_answer,
+        "Question": question,
+        "Route": route,
+        "LLM_SQL": llm_sql,
+        "Query_Result": query_result,
+        "Explanation": explanation,
+        "Model": llm_meta.get("model", ""),
+        "Prompt_Tokens": usage.get("prompt_tokens", ""),
+        "Completion_Tokens": usage.get("completion_tokens", ""),
+        "Total_Tokens": usage.get("total_tokens", ""),
     }
 
-def create_visualization(input_file: str = "logs/results.jsonl", output_file: str = "results_visualization.html"):
-    """Đọc tệp log, phân tích và tạo một bảng HTML để trực quan hóa."""
-    records = []
-    try:
-        with open(input_file, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.strip(): # Bỏ qua các dòng trống
-                    records.append(parse_log_line(line))
-    except FileNotFoundError:
-        print(f"Lỗi: Không tìm thấy tệp '{input_file}'.")
+
+def build_dataframe(log_path: Path) -> pd.DataFrame:
+    rows = []
+    for obj in _iter_json_objects(log_path):
+        try:
+            rows.append(_parse_entry(obj))
+        except Exception:
+            # Skip bad records but keep going
+            continue
+    return pd.DataFrame(rows)
+
+
+def main():
+    base = Path(__file__).parent
+    log_file = base / "logs" / "results.jsonl"
+    if not log_file.exists():
+        print(f"Không tìm thấy file: {log_file}")
         return
 
-    if not records:
-        print("Không có dữ liệu trong tệp để xử lý.")
+    df = build_dataframe(log_file)
+    if df.empty:
+        print("Không có dữ liệu.")
         return
 
-    # Tạo DataFrame từ dữ liệu đã trích xuất
-    df = pd.DataFrame(records)
+    # Console view
+    pd.set_option("display.width", 200)
+    pd.set_option("display.max_colwidth", 200)
+    cols = [
+        "Question", "Route",
+        "LLM_SQL",
+        "Query_Result", "Explanation",
+        "Model", "Prompt_Tokens", "Completion_Tokens", "Total_Tokens",
+    ]
+    cols = [c for c in cols if c in df.columns]
+    print(df[cols].to_string(index=False))
 
-    # Định dạng DataFrame thành HTML để đẹp hơn
-    html_styler = df.style.set_properties(**{
-        'text-align': 'left',
-        'white-space': 'pre-wrap', # Cho phép xuống dòng trong ô
-        'border': '1px solid #ddd',
-        'padding': '10px'
-    }).set_table_styles([
-        {'selector': 'th', 'props': [
-            ('background-color', '#1E88E5'), 
-            ('color', 'white'),
-            ('font-weight', 'bold')
-        ]},
-        {'selector': 'tr:nth-child(even)', 'props': [('background-color', '#f2f2f2')]},
-    ]).hide(axis="index") # Ẩn chỉ số cột của DataFrame
+    out_html = base / "report.html"
+    df[cols].to_html(out_html, index=False, escape=False)
+    print(f"Đã lưu: {out_html}")
 
-    # Lưu kết quả ra file HTML
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write(html_styler.to_html())
-        
-    print(f"🚀 Hoàn tất! Mở tệp '{output_file}' trong trình duyệt để xem kết quả.")
 
 if __name__ == "__main__":
-    create_visualization()
+    main()
