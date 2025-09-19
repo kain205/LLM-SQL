@@ -4,3 +4,4 @@ SQLAlchemy
 python-dotenv
 haystack-ai
 haystack-google-genai
+ollama-haystack
