@@ -14,7 +14,6 @@ import json
 from datetime import datetime
 
 load_dotenv()
-
 # Create database connection
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
@@ -22,18 +21,13 @@ if not DATABASE_URL:
     st.stop()
 engine = create_engine(DATABASE_URL)
 
-def log_interaction(question, sql_query, result, explanation, prompt):
-    """Ghi lại một lượt tương tác vào file log."""
-    log_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "question": question,
-        "prompt": prompt,
-        "generated_sql": sql_query,
-        "query_result": result,
-        "explanation": explanation
-    }
-    with open("app_log.json", "a", encoding="utf-8") as f:
-        f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+# log file for analytics
+log_path = "logs/results.jsonl"
+os.makedirs(os.path.dirname(log_path), exist_ok= True)
+def save_result(data: dict, path: str):
+    data = str(data)
+    with open(path, "a", encoding = "utf-8") as f:
+        f.write(json.dumps(data, ensure_ascii= False) + "\n")
 
 def fetch_all_violations():
     with engine.connect() as connection:
@@ -210,24 +204,18 @@ if st.button("Send"):
                         **db_context
                     },
                     "explain_prompt": {"question": user_question},
-                }, include_outputs_from= ["llm_explainer", "sql_querier", "llm", "prompt"])
+                }, include_outputs_from= ["llm_explainer", "sql_querier", "llm", "prompt", "router"])
 
-                # Trích xuất thông tin để log và hiển thị
-                explanation = result['llm_explainer']['replies'][0].text
-                sql_query = result['llm']['replies'][0].text
-                query_result_str = result['sql_querier']['results'][0]
-                prompt_str = result['prompt']['prompt'][0].text
-
-                # Ghi log tương tác
-                log_interaction(user_question, sql_query, query_result_str, explanation, prompt_str)
-
-                if 'llm_explainer' in result:
-                    st.success(explanation)
-                else:
-                    st.warning("Không thể tạo giải thích cho kết quả.")
-                
-                # Cập nhật expander với thông tin mới nhất
                 st.session_state.last_result = result
+
+                if "no_answer" in result["router"]:
+                    st.warning(result["router"]["no_answer"])
+                elif result["llm_explainer"]["replies"]:
+                    explanation = result['llm_explainer']['replies'][0].text
+                    st.success(explanation)
+                save_result(result, log_path)
+                # Log for analytics   
+                #log_interaction(user_question, sql_query, query_result_str, explanation, prompt_str)                
 
             except Exception as e:
                 st.error(f"Error: {str(e)}")
@@ -241,10 +229,3 @@ with st.expander("Debug Info"):
     if 'last_result' in st.session_state:
         st.write("Thông tin từ lần chạy pipeline cuối cùng:")
         st.json(st.session_state.last_result)
-
-    try:
-        with open("app_log.json", "r", encoding="utf-8") as f:
-            for line in f:
-                st.text(line.strip())
-    except FileNotFoundError:
-        st.info("File log chưa được tạo.")
