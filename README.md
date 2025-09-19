@@ -25,6 +25,17 @@ This project is a Streamlit web application that allows users to ask questions i
     ```
 
 2.  **Create and activate a virtual environment:**
+
+    **Recommended: Using Conda/Miniconda**
+    ```bash
+    # Create a new environment named 'llm_sql' with Python 3.11
+    conda create -n llm_sql python=3.11
+
+    # Activate the environment
+    conda activate llm_sql
+    ```
+
+    **Alternative: Using `venv`**
     ```bash
     # For Windows
     python -m venv venv
