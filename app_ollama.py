@@ -5,13 +5,19 @@ import os
 from dotenv import load_dotenv
 from haystack import component
 from haystack import Pipeline
+from haystack.utils import Secret
 from haystack.components.routers import ConditionalRouter
 from haystack.components.builders.prompt_builder import PromptBuilder
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, Document
 from haystack_integrations.components.generators.ollama import OllamaGenerator
 from sqlalchemy import create_engine, inspect, text
 import json
 import time # Thêm import time
+
+# RAG imports
+from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
+from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever
+from haystack.components.embedders import SentenceTransformersTextEmbedder
 
 load_dotenv()
 # Create database connection
@@ -134,9 +140,25 @@ class SQLQuery:
 
 # Setup Haystack pipeline
 def setup_pipeline():
+    # RAG components
+    document_store = PgvectorDocumentStore(
+        connection_string= Secret.from_env_var("DATABASE_URL"),
+        table_name="haystack_documents",
+        embedding_dimension = 384 
+    )
+    text_embedder = SentenceTransformersTextEmbedder(model="all-MiniLM-L6-v2")
+    retriever = PgvectorEmbeddingRetriever(document_store=document_store, top_k=3)
+
     sql_query = SQLQuery(engine)
     template = """Please generate a PostgreSQL query to answer the following question.
                 Question: {{question}}
+
+                Here is some additional context from our knowledge base that might be helpful:
+                ---
+                {% for doc in documents %}
+                {{ doc.content }}
+                {% endfor %}
+                ---
                 
                 Use the table 'public.violations' with these columns: {{columns}}
 
@@ -192,6 +214,10 @@ def setup_pipeline():
     router = ConditionalRouter(routes)
 
     sql_pipeline = Pipeline()
+    # RAG components
+    sql_pipeline.add_component('text_embedder', text_embedder)
+    sql_pipeline.add_component('retriever', retriever)
+    # Old components
     sql_pipeline.add_component('prompt', prompt)
     sql_pipeline.add_component('llm', llm)
     sql_pipeline.add_component('converter', converter)
@@ -220,6 +246,11 @@ def setup_pipeline():
     sql_pipeline.add_component('explain_prompt', explain_prompt)
     sql_pipeline.add_component('llm_explainer', llm_explainer)
 
+    # Connect RAG components
+    sql_pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
+    sql_pipeline.connect("retriever.documents", "prompt.documents")
+
+    # Connect old components
     sql_pipeline.connect("prompt.prompt", "llm.prompt")
     sql_pipeline.connect("llm.replies", "converter.replies")
     sql_pipeline.connect("converter.str_queries", "router.str_queries")
@@ -259,6 +290,7 @@ if st.button("Send"):
 
                 # Chạy pipeline với câu hỏi của người dùng và ngữ cảnh mới
                 result = sql_pipeline.run({
+                    "text_embedder": {"text": user_question},
                     "prompt": {
                         "question": user_question, 
                         **db_context
