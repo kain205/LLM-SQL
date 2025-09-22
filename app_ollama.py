@@ -9,7 +9,7 @@ from haystack.components.routers import ConditionalRouter
 from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.dataclasses import ChatMessage
 from haystack_integrations.components.generators.ollama import OllamaGenerator
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 import json
 from datetime import datetime
 
@@ -67,14 +67,18 @@ def get_db_context():
         sample_rows_df = pd.read_sql("SELECT * FROM public.violations LIMIT 3", connection)
         
         # Lấy các giá trị duy nhất cho các cột phân loại
-        violation_types = pd.read_sql("SELECT DISTINCT violation_type FROM public.violations", connection)['violation_type'].tolist()
-        statuses = pd.read_sql("SELECT DISTINCT status FROM public.violations", connection)['status'].tolist()
+        violation_types = pd.read_sql("SELECT DISTINCT loai_vi_pham FROM public.violations", connection)['loai_vi_pham'].tolist()
+        statuses = pd.read_sql("SELECT DISTINCT trang_thai FROM public.violations", connection)['trang_thai'].tolist()
+        departments = pd.read_sql("SELECT DISTINCT phong_ban FROM public.violations", connection)['phong_ban'].tolist()
+        areas = pd.read_sql("SELECT DISTINCT khu_vuc FROM public.violations", connection)['khu_vuc'].tolist()
 
         context = {
             "columns": columns,
             "sample_rows": sample_rows_df.to_string(),
             "violation_types": ", ".join(f"'{v}'" for v in violation_types),
-            "statuses": ", ".join(f"'{s}'" for s in statuses)
+            "statuses": ", ".join(f"'{s}'" for s in statuses),
+            "departments": ", ".join(f"'{d}'" for d in departments),
+            "areas": ", ".join(f"'{a}'" for a in areas)
         }
         return context
 
@@ -98,16 +102,32 @@ class MDconverter:
 class SQLQuery:
     def __init__(self, engine):
         self._engine = engine
-        self.connection = self._engine.connect()
+        # Không cần giữ connection ở đây, sẽ quản lý trong hàm run
+        # self.connection = self._engine.connect()
 
     @component.output_types(results=list[str], queries = list[str])
     def run(self, sql_queries: list[str]):
         results = []
         
         for query in sql_queries:
-            try:                    
-                result = pd.read_sql(query, self.connection)
-                results.append(f"{result}")
+            try:
+                # Sử dụng 'with' để đảm bảo connection được đóng đúng cách
+                with self._engine.connect() as connection:
+                    # Thực thi truy vấn và lấy kết quả
+                    cursor_result = connection.execute(text(query))
+                    
+                    # Kiểm tra xem truy vấn có trả về hàng không (ví dụ: SELECT)
+                    if cursor_result.returns_rows:
+                        # Lấy tất cả các hàng và tên cột
+                        rows = cursor_result.fetchall()
+                        columns = cursor_result.keys()
+                        # Tạo DataFrame từ kết quả
+                        result_df = pd.DataFrame(rows, columns=columns)
+                        results.append(result_df.to_string())
+                    else:
+                        # Đối với các truy vấn không trả về hàng (ví dụ: UPDATE, INSERT)
+                        results.append(f"Query executed successfully, {cursor_result.rowcount} rows affected.")
+
             except Exception as e:
                 results.append(f"SQL Error: {str(e)}")
         return {'results': results, 'queries': sql_queries}
@@ -121,8 +141,11 @@ def setup_pipeline():
                 Use the table 'public.violations' with these columns: {{columns}}
 
                 Here is some context about the data in the table:
-                - The 'violation_type' column can contain values like: {{violation_types}}.
-                - The 'status' column can contain values like: {{statuses}}.
+                - The 'loai_vi_pham' column can contain values like: {{violation_types}}.
+                - The 'trang_thai' column can contain values like: {{statuses}}.
+                - The 'phong_ban' column can contain values like: {{departments}}.
+                - The 'khu_vuc' column can contain values like: {{areas}}.
+                - The 'thoi_gian_vi_pham' column stores the exact timestamp of the violation.
                 - Here are some sample rows from the table:
                 {{sample_rows}}
                 
@@ -163,7 +186,7 @@ def setup_pipeline():
         },
         {
             "condition": "{{'no_answer' in str_queries[0].lower()}}",
-            "output": "I cannot answer this question based on the available data. The database contains information about violations with columns for id, employee_name, violation_type, violation_date, and status. Please try asking a question related to these fields.",
+            "output": "I cannot answer this question based on the available data. The database contains information about violations with columns for id, ten_nhan_vien, phong_ban, loai_vi_pham, khu_vuc, thoi_gian_vi_pham, and trang_thai. Please try asking a question related to these fields.",
             "output_name": "no_answer",
             "output_type": str,
         },
@@ -177,6 +200,24 @@ def setup_pipeline():
     sql_pipeline.add_component('router', router)
     sql_pipeline.add_component('sql_querier', sql_query)
 
+    # New: Router to handle SQL execution errors
+    error_routes = [
+        {
+            "condition": "{{'SQL Error:' in results[0]}}",
+            "output": "{{results[0]}}",
+            "output_name": "sql_error",
+            "output_type": str,
+        },
+        {
+            "condition": "{{'SQL Error:' not in results[0]}}",
+            "output": "{{results}}",
+            "output_name": "results_ok",
+            "output_type": list[str],
+        },
+    ]
+    error_router = ConditionalRouter(error_routes)
+    sql_pipeline.add_component('error_router', error_router)
+
     # New components for explain
     sql_pipeline.add_component('explain_prompt', explain_prompt)
     sql_pipeline.add_component('llm_explainer', llm_explainer)
@@ -186,8 +227,11 @@ def setup_pipeline():
     sql_pipeline.connect("converter.str_queries", "router.str_queries")
     sql_pipeline.connect("router.sql", "sql_querier.sql_queries")
 
-    # New connections to build explanation
-    sql_pipeline.connect("sql_querier.results", "explain_prompt.result")
+    # Route the results from sql_querier to the new error_router
+    sql_pipeline.connect("sql_querier.results", "error_router.results")
+
+    # New connections to build explanation (only on success)
+    sql_pipeline.connect("error_router.results_ok", "explain_prompt.result")
     sql_pipeline.connect("sql_querier.queries", "explain_prompt.query")
     sql_pipeline.connect("explain_prompt.prompt", "llm_explainer.prompt")
 
@@ -220,12 +264,15 @@ if st.button("Send"):
                         **db_context
                     },
                     "explain_prompt": {"question": user_question},
-                }, include_outputs_from= ["llm_explainer", "sql_querier", "llm", "prompt", "router"])
+                }, include_outputs_from= ["llm_explainer", "sql_querier", "llm", "prompt", "router", "error_router"])
 
                 st.session_state.last_result = result
 
                 if "no_answer" in result["router"]:
                     st.warning(result["router"]["no_answer"])
+                elif "sql_error" in result["error_router"]:
+                    st.error(f"Đã xảy ra lỗi khi thực thi SQL:\n{result['error_router']['sql_error']}")
+                    st.code(result['sql_querier']['queries'][0], language='sql')
                 elif result["llm_explainer"]["replies"]:
                     explanation = result['llm_explainer']['replies'][0]
                     st.success(explanation)
