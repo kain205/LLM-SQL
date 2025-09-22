@@ -26,38 +26,45 @@ def setup_database():
         conn.execute(text("""
             CREATE TABLE public.violations (
                 id SERIAL PRIMARY KEY,
-                employee_name TEXT NOT NULL,
-                violation_type TEXT,
-                violation_date DATE,
-                status TEXT
+                ten_nhan_vien TEXT,
+                phong_ban TEXT,
+                loai_vi_pham TEXT,
+                khu_vuc TEXT,
+                thoi_gian_vi_pham TIMESTAMP,
+                trang_thai TEXT
             );
         """))
 
         # Insert fresh sample data
         print("Inserting sample data...")
         conn.execute(text("""
-            INSERT INTO public.violations (employee_name, violation_type, violation_date, status) VALUES
-            -- Original Data
-            ('Nguyen Van A', 'Đi trễ', CURRENT_DATE, 'pending'),
-            ('Tran Thi B', 'Không mặc đồng phục', CURRENT_DATE - INTERVAL '7 day', 'resolved'),
-            ('Le Van C', 'Đi trễ', CURRENT_DATE, 'pending'),
+            INSERT INTO public.violations (ten_nhan_vien, phong_ban, loai_vi_pham, khu_vuc, thoi_gian_vi_pham, trang_thai) VALUES
+            -- Người vi phạm nhiều lần
+            ('Nguyen Van A', 'Sản xuất', 'Đi trễ', 'Xưởng A', NOW() - INTERVAL '15 days', 'Đã giải quyết'),
+            ('Nguyen Van A', 'Sản xuất', 'Không mặc đồng phục', 'Xưởng A', NOW() - INTERVAL '10 days', 'Đã giải quyết'),
+            ('Nguyen Van A', 'Sản xuất', 'Sử dụng điện thoại trong giờ', 'Khu vực nghỉ', NOW() - INTERVAL '2 days', 'Đang xử lý'),
+            ('Tran Thi B', 'Kho vận', 'Không đội mũ bảo hiểm', 'Cổng số 2', NOW() - INTERVAL '20 days', 'Đã giải quyết'),
+            ('Tran Thi B', 'Kho vận', 'Để xe sai quy định', 'Bãi xe', NOW() - INTERVAL '5 days', 'Đang xử lý'),
+            ('Le Van C', 'Sản xuất', 'Đi làm muộn', 'Xưởng B', NOW() - INTERVAL '1 day', 'Đang xử lý'),
+            ('Le Van C', 'Sản xuất', 'Không đeo găng tay bảo hộ', 'Xưởng B', NOW() - INTERVAL '3 days', 'Đã giải quyết'),
+            ('Le Van C', 'Sản xuất', 'Gây mất trật tự', 'Nhà ăn', NOW(), 'Đang xử lý'),
 
-            -- New Computer Vision Data
-            ('Phạm Văn D', 'Không đội mũ bảo hiểm', CURRENT_DATE - INTERVAL '1 day', 'pending'),
-            ('Hoàng Thị E', 'Thiếu mũ bảo hộ', CURRENT_DATE - INTERVAL '2 day', 'resolved'),
-            ('Vũ Văn F', 'không đội nón bảo hiểm tại công trường', CURRENT_DATE, 'pending'),
-            ('Trần Minh G', 'Không mặc áo bảo hộ', CURRENT_DATE - INTERVAL '3 day', 'investigating'),
-            ('Lê Thị H', 'Thiếu áo phản quang', CURRENT_DATE - INTERVAL '4 day', 'resolved'),
-            ('Nguyễn Anh I', 'Sử dụng điện thoại khi vận hành máy', CURRENT_DATE, 'pending'),
-            ('Đặng Văn K', 'Nghe điện thoại trong giờ làm việc', CURRENT_DATE - INTERVAL '5 day', 'resolved'),
-            ('Bùi Thị L', 'Đi vào khu vực cấm', CURRENT_DATE - INTERVAL '1 day', 'investigating'),
-            ('Hồ Văn M', 'Xâm nhập vùng nguy hiểm', CURRENT_DATE, 'pending'),
-            ('Doãn Chí N', 'Đỗ xe sai quy định', CURRENT_DATE - INTERVAL '10 day', 'resolved'),
-            ('Ngô Quyền P', 'đậu xe lấn chiếm lối đi', CURRENT_DATE - INTERVAL '2 day', 'pending'),
-            ('Dương Quá T', 'Hút thuốc nơi cấm', CURRENT_DATE - INTERVAL '6 day', 'resolved'),
-            ('Lý Mạc Sầu U', 'hút thuốc lá trong nhà xưởng', CURRENT_DATE - INTERVAL '1 day', 'pending'),
-            ('Trương Vô Kỵ', 'Không đeo khẩu trang', CURRENT_DATE, 'investigating'),
-            ('Chu Chỉ Nhược', 'thiếu khẩu trang y tế', CURRENT_DATE - INTERVAL '3 day', 'resolved');
+            ('Phạm Văn D', 'Bảo trì', 'Không sử dụng nón bảo hộ', 'Phòng kỹ thuật', NOW() - INTERVAL '7 days', 'Đã giải quyết'),
+            ('Hoàng Thị E', 'Kho vận', 'Thiếu áo phản quang', 'Hành lang B', NOW() - INTERVAL '4 days', 'Đã giải quyết'),
+            ('Vũ Văn F', 'Sản xuất', 'Vận hành máy không đúng quy trình', 'Xưởng A', NOW() - INTERVAL '6 days', 'Đang xử lý'),
+            ('Đặng Thị H', 'Sản xuất', 'thiếu mũ bảo hiểm tại công trường', 'Công trường X', NOW() - INTERVAL '1 day', 'Đang xử lý'),
+            ('Bùi Văn G', 'Xây dựng', 'Không thắt dây an toàn khi làm việc trên cao', 'Tầng 5, Tòa nhà A', NOW() - INTERVAL '2 hours', 'Đang xử lý'),
+
+            ('Trần Minh G', 'An ninh', 'Bỏ vị trí gác', 'Cổng số 1', NOW() - INTERVAL '8 hours', 'Đang xử lý'),
+            ('Lý Thị K', 'Văn phòng', 'Ăn uống tại bàn làm việc', 'Khu văn phòng', NOW() - INTERVAL '1 day', 'Đã giải quyết'),
+            ('Hồ Văn M', 'Sản xuất', 'hút thuốc lá trong nhà xưởng', 'Xưởng C', NOW() - INTERVAL '3 days', 'Đang xử lý'),
+            ('Doãn Chí N', 'Kho vận', 'đậu xe lấn chiếm lối đi', 'Lối đi kho', NOW() - INTERVAL '5 days', 'Đã giải quyết'),
+            
+            ('Ngô Quyền P', 'Kinh doanh', 'Không đeo thẻ tên', 'Phòng họp', NOW() - INTERVAL '1 day', 'Đang xử lý'),
+            ('Dương Quá T', 'Sản xuất', 'Mặc sai đồng phục quy định', 'Xưởng A', NOW() - INTERVAL '2 days', 'Đã giải quyết'),
+
+            ('Trương Vô Kỵ', 'IT', 'Truy cập trang web cấm', 'Văn phòng IT', NOW() - INTERVAL '1 hour', 'Đang xử lý'),
+            ('Chu Chỉ Nhược', 'Nhân sự', 'Vắng mặt không lý do', 'Văn phòng nhân sự', NOW() - INTERVAL '4 days', 'Đã giải quyết');
         """))
         
     print("Database reset complete. Table 'violations' is ready.")
