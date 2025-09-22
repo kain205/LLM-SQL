@@ -159,18 +159,6 @@ def setup_pipeline():
                 {{ doc.content }}
                 {% endfor %}
                 ---
-                
-                Use the table 'public.violations' with these columns: {{columns}}
-
-                Here is some context about the data in the table:
-                - The 'loai_vi_pham' column can contain values like: {{violation_types}}.
-                - The 'trang_thai' column can contain values like: {{statuses}}.
-                - The 'phong_ban' column can contain values like: {{departments}}.
-                - The 'khu_vuc' column can contain values like: {{areas}}.
-                - The 'thoi_gian_vi_pham' column stores the exact timestamp of the violation.
-                - Here are some sample rows from the table:
-                {{sample_rows}}
-                
                 If the question cannot be answered using this table and these columns, 
                 respond exactly with 'no_answer'.
                 
@@ -293,7 +281,7 @@ if st.button("Send"):
                     "text_embedder": {"text": user_question},
                     "prompt": {
                         "question": user_question, 
-                        **db_context
+                        #**db_context
                     },
                     "explain_prompt": {"question": user_question},
                 }, include_outputs_from= ["llm_explainer", "sql_querier", "llm", "prompt", "router", "error_router", "explain_prompt"])
