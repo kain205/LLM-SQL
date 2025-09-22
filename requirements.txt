@@ -5,3 +5,9 @@ python-dotenv
 haystack-ai
 haystack-google-genai
 ollama-haystack
+pgvector-haystack
+markdown-it-py 
+mdit_plain
+nltk>=3.9.1
+sentence-transformers
+psycopg2-binary
