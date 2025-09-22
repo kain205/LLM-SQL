@@ -161,18 +161,16 @@ def setup_pipeline():
 
     # New: prompt để giải thích kết quả + LLM riêng cho phần giải thích
     explain_template = """
-    Hãy giải thích ngắn gọn kết quả cho câu hỏi của người dùng.
-    Câu hỏi: {{question}}
+    Bạn là một trợ lý chuyên giải thích kết quả từ SQL theo cách tự nhiên.  
+    Nhiệm vụ:  
+    - Đọc câu hỏi của người dùng và kết quả SQL trả về.  
+    - Trả lời ngắn gọn, dễ hiểu, giống như cách con người trả lời trực tiếp.  
+    - Không lặp lại câu hỏi, không nhắc lại kết quả thô, chỉ đưa ra câu trả lời tự nhiên.  
 
-    SQL đã chạy:
-    ```sql
-    {{query[0]}}
-    ```
+    Câu hỏi của người dùng: {{question}}  
+    Kết quả SQL: {{result[0]}}  
 
-    Kết quả thô:
-    {{result[0]}}
-
-    Trả lời ngắn gọn, trực tiếp, không nêu chi tiết kỹ thuật.
+    Hãy trả lời:
     """
     explain_prompt = PromptBuilder(template=explain_template)
     llm_explainer = OllamaGenerator(model="hf.co/second-state/CodeQwen1.5-7B-Chat-GGUF:Q4_K_M")
@@ -232,7 +230,7 @@ def setup_pipeline():
 
     # New connections to build explanation (only on success)
     sql_pipeline.connect("error_router.results_ok", "explain_prompt.result")
-    sql_pipeline.connect("sql_querier.queries", "explain_prompt.query")
+    #sql_pipeline.connect("sql_querier.queries", "explain_prompt.query")
     sql_pipeline.connect("explain_prompt.prompt", "llm_explainer.prompt")
 
     return sql_pipeline
@@ -264,7 +262,7 @@ if st.button("Send"):
                         **db_context
                     },
                     "explain_prompt": {"question": user_question},
-                }, include_outputs_from= ["llm_explainer", "sql_querier", "llm", "prompt", "router", "error_router"])
+                }, include_outputs_from= ["llm_explainer", "sql_querier", "llm", "prompt", "router", "error_router", "explain_prompt"])
 
                 st.session_state.last_result = result
 
