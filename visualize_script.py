@@ -181,18 +181,22 @@ def main():
             # Bỏ qua nếu ô trống để tránh tạo thẻ <details> không cần thiết
             is_not_empty = df_html[col].astype(str).str.strip() != ""
             
-            # Bọc nội dung trong thẻ <details> để có thể thu gọn/mở rộng
-            # .str.replace('\n', '<br>') để giữ nguyên định dạng xuống dòng khi mở ra
+            # Bọc nội dung trong thẻ <details> với nút copy
+            # Sử dụng <pre><code> để giữ định dạng code/text và giúp JS dễ dàng lấy nội dung
             df_html.loc[is_not_empty, col] = (
-                "<details><summary>Click to expand</summary>"
-                + df_html.loc[is_not_empty, col].astype(str).str.replace('\n', '<br>', regex=False)
-                + "</details>"
+                "<details>"
+                "<summary>Click to expand</summary>"
+                '<button class="copy-btn" onclick="copyToClipboard(this)">Copy</button>'
+                '<pre class="copy-content"><code>' +
+                df_html.loc[is_not_empty, col].astype(str) +
+                '</code></pre>'
+                "</details>"
             )
 
     # Chuyển DataFrame thành chuỗi HTML
     html_table = df_html[cols].to_html(index=False, escape=False, border=0, classes="dataframe")
 
-    # Tạo một file HTML hoàn chỉnh với CSS để kiểm soát chiều rộng cột
+    # Tạo một file HTML hoàn chỉnh với CSS và JavaScript
     full_html = f"""
     <!DOCTYPE html>
     <html>
@@ -204,12 +208,13 @@ def main():
         table.dataframe {{
             border-collapse: collapse;
             border: 1px solid #ccc;
+            width: 100%; /* Làm cho bảng rộng tối đa */
         }}
         table.dataframe th, table.dataframe td {{
             border: 1px solid #ccc;
             padding: 8px;
             text-align: left;
-            vertical-align: top; /* Căn lề trên cho các ô */
+            vertical-align: top;
         }}
         table.dataframe th {{
             background-color: #f2f2f2;
@@ -226,8 +231,53 @@ def main():
         }}
         details > summary {{
             cursor: pointer;
+            display: inline-block; /* Để summary và button trên cùng một hàng */
+        }}
+        .copy-btn {{
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background-color: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 10px;
+            font-size: 12px;
+        }}
+        .copy-btn:hover {{ background-color: #e0e0e0; }}
+        pre.copy-content {{
+            background-color: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            padding: 10px;
+            overflow-x: auto;
+            white-space: pre-wrap; /* Ngắt dòng tự động */
+            word-wrap: break-word; /* Ngắt từ nếu cần thiết */
         }}
     </style>
+    <script>
+        function copyToClipboard(button) {{
+            // Tìm <code> bên trong <details> chứa nút bấm
+            var codeElement = button.parentElement.querySelector('code');
+            if (!codeElement) return;
+
+            // Tạo một phạm vi chọn mới và thiết lập văn bản được chọn là nội dung của phần tử <code>
+            var range = document.createRange();
+            range.selectNodeContents(codeElement);
+            var sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+
+            try {{
+                // Sao chép nội dung đã chọn vào clipboard
+                var successful = document.execCommand('copy');
+                var msg = successful ? 'successful' : 'unsuccessful';
+                console.log('Copy text command was ' + msg);
+            }} catch (err) {{
+                console.error('Unable to copy text: ', err);
+            }}
+
+            // Bỏ chọn văn bản sau khi sao chép
+            sel.removeAllRanges();
+        }}
+    </script>
     </head>
     <body>
     <h1>SQL Pipeline Report</h1>
