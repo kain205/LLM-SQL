@@ -11,7 +11,7 @@ from haystack.dataclasses import ChatMessage
 from haystack_integrations.components.generators.ollama import OllamaGenerator
 from sqlalchemy import create_engine, inspect, text
 import json
-from datetime import datetime
+import time # Thêm import time
 
 load_dotenv()
 # Create database connection
@@ -249,6 +249,8 @@ if st.button("Send"):
     if user_question:
         with st.spinner("Đang xử lý câu hỏi..."):
             try:
+                start_time = time.time() # Bắt đầu tính giờ
+
                 # Initialize pipeline
                 sql_pipeline = setup_pipeline()
                 
@@ -263,6 +265,10 @@ if st.button("Send"):
                     },
                     "explain_prompt": {"question": user_question},
                 }, include_outputs_from= ["llm_explainer", "sql_querier", "llm", "prompt", "router", "error_router", "explain_prompt"])
+
+                end_time = time.time() # Kết thúc tính giờ
+                execution_time = end_time - start_time
+                result['execution_time'] = execution_time # Thêm thời gian thực thi vào kết quả
 
                 st.session_state.last_result = result
 

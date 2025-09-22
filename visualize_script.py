@@ -112,9 +112,13 @@ def _parse_entry(obj: dict) -> dict:
     # Tính tổng
     total_tokens = sql_prompt_tokens + sql_completion_tokens + expl_prompt_tokens + expl_completion_tokens
 
+    # Lấy thời gian thực thi
+    execution_time = obj.get("execution_time", 0.0)
+
     return {
         "Question": question,
         "Route": route,
+        "Execution_Time": f"{execution_time:.2f}s" if execution_time > 0 else "",
         "SQL_Prompt": sql_prompt_content,
         "LLM_SQL": llm_sql,
         "Query_Result": query_result,
@@ -156,7 +160,7 @@ def main():
     pd.set_option("display.width", 200)
     pd.set_option("display.max_colwidth", 200)
     cols = [
-        "Question", "Route",
+        "Question", "Route", "Execution_Time",
         "SQL_Prompt",
         "LLM_SQL",
         "Query_Result",
