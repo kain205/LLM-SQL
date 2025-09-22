@@ -20,6 +20,7 @@ def _iter_json_objects(filepath: str | Path):
 
 
 _question_re = re.compile(r"Question:\s*(.+)", re.IGNORECASE)
+_code_fence_re = re.compile(r"```(?:sql)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
 
 
 def _extract_question(prompt_content: str) -> str:
@@ -27,9 +28,6 @@ def _extract_question(prompt_content: str) -> str:
         return "N/A"
     m = _question_re.search(prompt_content)
     return m.group(1).strip() if m else prompt_content.strip()
-
-
-_code_fence_re = re.compile(r"```(?:sql)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
 
 
 def _clean_sql(text: str) -> str:
@@ -44,30 +42,33 @@ def _first(lst, default=""):
 
 
 def _parse_entry(obj: dict) -> dict:
-    # Prompt -> Question
-    prompt_blocks = (((obj.get("prompt") or {}).get("prompt")) or [])
-    prompt_content = prompt_blocks[0].get("content") if prompt_blocks else ""
+    # Prompt -> Question (prompt is a string under obj.prompt.prompt)
+    prompt_field = ((obj.get("prompt") or {}).get("prompt"))
+    prompt_content = prompt_field if isinstance(prompt_field, str) else ""
     question = _extract_question(prompt_content)
 
-    # LLM draft SQL (raw assistant reply)
-    llm_replies = ((obj.get("llm") or {}).get("replies")) or []
-    llm_text = (llm_replies[0].get("content") or "").strip() if llm_replies else ""
+    # LLM draft SQL (llm.replies is list[str], meta in llm.meta[0])
+    llm_block = obj.get("llm") or {}
+    llm_replies = llm_block.get("replies") or []
+    llm_text = str(llm_replies[0]).strip() if llm_replies else ""
     llm_sql = _clean_sql(llm_text)
-    llm_meta = (llm_replies[0].get("meta") or {}) if llm_replies else {}
+
+    llm_meta_list = llm_block.get("meta") or []
+    llm_meta = llm_meta_list[0] if isinstance(llm_meta_list, list) and llm_meta_list else {}
     usage = llm_meta.get("usage") or {}
 
     # Router decision
     router = obj.get("router") or {}
     route = "sql" if "sql" in router else ("no_answer" if "no_answer" in router else "unknown")
 
-    # SQL executor
+    # SQL executor (results is list[str] pretty-printed)
     sql_q = obj.get("sql_querier") or {}
     query_result = _first(sql_q.get("results"))
 
-    # Explainer
-    expl = obj.get("llm_explainer") or {}
-    expl_replies = expl.get("replies") or []
-    explanation = (expl_replies[0].get("content") or "").strip() if expl_replies else ""
+    # Explainer (llm_explainer.replies is list[str])
+    expl_block = obj.get("llm_explainer") or {}
+    expl_replies = expl_block.get("replies") or []
+    explanation = str(expl_replies[0]).strip() if expl_replies else ""
 
     return {
         "Question": question,
@@ -88,7 +89,6 @@ def build_dataframe(log_path: Path) -> pd.DataFrame:
         try:
             rows.append(_parse_entry(obj))
         except Exception:
-            # Skip bad records but keep going
             continue
     return pd.DataFrame(rows)
 
@@ -115,7 +115,7 @@ def main():
         "Model", "Prompt_Tokens", "Completion_Tokens", "Total_Tokens",
     ]
     cols = [c for c in cols if c in df.columns]
-    print(df[cols].to_string(index=False))
+    #print(df[cols].to_string(index=False))
 
     out_html = base / "report.html"
     df[cols].to_html(out_html, index=False, escape=False)
