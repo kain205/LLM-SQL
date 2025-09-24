@@ -8,9 +8,9 @@ from haystack import Pipeline
 from haystack.utils import Secret
 from haystack.components.routers import ConditionalRouter
 from haystack.components.builders.prompt_builder import PromptBuilder
-from haystack.dataclasses import ChatMessage, Document
+from haystack.dataclasses import ChatMessage
 from haystack_integrations.components.generators.ollama import OllamaGenerator
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, text
 import json
 import time # Thêm import time
 
@@ -48,10 +48,6 @@ def save_result(data: dict, path: str):
     """
     Saves the dictionary to a JSONL file, correctly handling ChatMessage objects.
     """
-    # 1. REMOVE the line: data = str(data)
-
-    # 2. Simply pass the dictionary directly to json.dumps,
-    #    using our "translator" function for any special objects.
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(data, default=_json_serializer, ensure_ascii=False) + "\n")
 
@@ -60,33 +56,6 @@ def fetch_all_violations():
         df = pd.read_sql("SELECT * FROM violations", connection)
         return df
 
-def get_db_context():
-    """
-    Lấy schema, dữ liệu mẫu, và các giá trị duy nhất để cung cấp ngữ cảnh cho LLM.
-    """
-    with engine.connect() as connection:
-        # Lấy tên cột
-        inspector = inspect(engine)
-        columns = [col['name'] for col in inspector.get_columns('violations')]
-
-        # Lấy dữ liệu mẫu
-        sample_rows_df = pd.read_sql("SELECT * FROM public.violations LIMIT 3", connection)
-        
-        # Lấy các giá trị duy nhất cho các cột phân loại
-        violation_types = pd.read_sql("SELECT DISTINCT violation_type FROM public.violations", connection)['violation_type'].tolist()
-        statuses = pd.read_sql("SELECT DISTINCT status FROM public.violations", connection)['status'].tolist()
-        departments = pd.read_sql("SELECT DISTINCT department FROM public.violations", connection)['department'].tolist()
-        areas = pd.read_sql("SELECT DISTINCT area FROM public.violations", connection)['area'].tolist()
-
-        context = {
-            "columns": columns,
-            "sample_rows": sample_rows_df.to_string(),
-            "violation_types": ", ".join(f"'{v}'" for v in violation_types),
-            "statuses": ", ".join(f"'{s}'" for s in statuses),
-            "departments": ", ".join(f"'{d}'" for d in departments),
-            "areas": ", ".join(f"'{a}'" for a in areas)
-        }
-        return context
 
 # Custom components from practice.py
 @component
@@ -249,7 +218,6 @@ def setup_pipeline():
 
     # New connections to build explanation (only on success)
     sql_pipeline.connect("error_router.results_ok", "explain_prompt.result")
-    #sql_pipeline.connect("sql_querier.queries", "explain_prompt.query")
     sql_pipeline.connect("explain_prompt.prompt", "llm_explainer.prompt")
 
     return sql_pipeline
@@ -272,16 +240,12 @@ if st.button("Send"):
 
                 # Initialize pipeline
                 sql_pipeline = setup_pipeline()
-                
-                # Lấy ngữ cảnh database trước khi chạy pipeline
-                db_context = get_db_context()
 
                 # Chạy pipeline với câu hỏi của người dùng và ngữ cảnh mới
                 result = sql_pipeline.run({
                     "text_embedder": {"text": user_question},
                     "prompt": {
                         "question": user_question, 
-                        #**db_context
                     },
                     "explain_prompt": {"question": user_question},
                 }, include_outputs_from= ["llm_explainer", "sql_querier", "llm", "prompt", "router", "error_router", "explain_prompt"])
@@ -302,7 +266,6 @@ if st.button("Send"):
                     st.success(explanation)
                 save_result(result, log_path)
                 # Log for analytics   
-                #log_interaction(user_question, sql_query, query_result_str, explanation, prompt_str)                
 
             except Exception as e:
                 st.error(f"Error: {str(e)}")
