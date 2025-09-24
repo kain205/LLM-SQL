@@ -10,7 +10,7 @@ from haystack.components.routers import ConditionalRouter
 from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.dataclasses import ChatMessage
 from haystack_integrations.components.generators.ollama import OllamaGenerator
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, inspect
 import json
 import time # Thêm import time
 
@@ -50,6 +50,24 @@ def save_result(data: dict, path: str):
     """
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(data, default=_json_serializer, ensure_ascii=False) + "\n")
+
+def get_table_schema(engine, table_name):
+    """
+    Fetches the schema of a given table and formats it as a string.
+    """
+    try:
+        inspector = inspect(engine)
+        columns = inspector.get_columns(table_name)
+        
+        schema_str = f'Table "{table_name}" has the following columns:\n'
+        for column in columns:
+            col_name = column['name']
+            col_type = str(column['type'])
+            schema_str += f'- {col_name} ({col_type})\n'
+            
+        return schema_str
+    except Exception as e:
+        return f"Could not inspect table '{table_name}'. Error: {e}"
 
 def fetch_all_violations():
     with engine.connect() as connection:
@@ -118,9 +136,17 @@ def setup_pipeline():
     text_embedder = SentenceTransformersTextEmbedder(model="all-MiniLM-L6-v2")
     retriever = PgvectorEmbeddingRetriever(document_store=document_store, top_k=3)
 
+    # Fetch table schema
+    table_schema = get_table_schema(engine, "violations")
+
     sql_query = SQLQuery(engine)
     template = """Please generate a PostgreSQL query to answer the following question.
                 Question: {{question}}
+
+                Here is the database schema for the `violations` table:
+                ---
+                {{schema}}
+                ---
 
                 Here is some additional context from our knowledge base that might be helpful:
                 ---
@@ -135,7 +161,7 @@ def setup_pipeline():
                 Always start your query with SELECT or WITH.
                 """
     prompt = PromptBuilder(template=template)
-    llm = OllamaGenerator(model="hf.co/second-state/CodeQwen1.5-7B-Chat-GGUF:Q4_K_M")
+    llm = OllamaGenerator(model="hf.co/second-state/CodeQwen1.5-7B-Chat-GGUF:Q4_K_M", keep_alive= -1)
     converter = MDconverter()
 
     # New: prompt to explain the result + separate LLM for the explanation
@@ -245,7 +271,8 @@ if st.button("Send"):
                 result = sql_pipeline.run({
                     "text_embedder": {"text": user_question},
                     "prompt": {
-                        "question": user_question, 
+                        "question": user_question,
+                        "schema": get_table_schema(engine, "violations")
                     },
                     "explain_prompt": {"question": user_question},
                 }, include_outputs_from= ["llm_explainer", "sql_querier", "llm", "prompt", "router", "error_router", "explain_prompt"])
