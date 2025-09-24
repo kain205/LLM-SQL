@@ -73,10 +73,10 @@ def get_db_context():
         sample_rows_df = pd.read_sql("SELECT * FROM public.violations LIMIT 3", connection)
         
         # Lấy các giá trị duy nhất cho các cột phân loại
-        violation_types = pd.read_sql("SELECT DISTINCT loai_vi_pham FROM public.violations", connection)['loai_vi_pham'].tolist()
-        statuses = pd.read_sql("SELECT DISTINCT trang_thai FROM public.violations", connection)['trang_thai'].tolist()
-        departments = pd.read_sql("SELECT DISTINCT phong_ban FROM public.violations", connection)['phong_ban'].tolist()
-        areas = pd.read_sql("SELECT DISTINCT khu_vuc FROM public.violations", connection)['khu_vuc'].tolist()
+        violation_types = pd.read_sql("SELECT DISTINCT violation_type FROM public.violations", connection)['violation_type'].tolist()
+        statuses = pd.read_sql("SELECT DISTINCT status FROM public.violations", connection)['status'].tolist()
+        departments = pd.read_sql("SELECT DISTINCT department FROM public.violations", connection)['department'].tolist()
+        areas = pd.read_sql("SELECT DISTINCT area FROM public.violations", connection)['area'].tolist()
 
         context = {
             "columns": columns,
@@ -169,18 +169,18 @@ def setup_pipeline():
     llm = OllamaGenerator(model="hf.co/second-state/CodeQwen1.5-7B-Chat-GGUF:Q4_K_M")
     converter = MDconverter()
 
-    # New: prompt để giải thích kết quả + LLM riêng cho phần giải thích
+    # New: prompt to explain the result + separate LLM for the explanation
     explain_template = """
-    Bạn là một trợ lý chuyên giải thích kết quả từ SQL theo cách tự nhiên.  
-    Nhiệm vụ:  
-    - Đọc câu hỏi của người dùng và kết quả SQL trả về.  
-    - Trả lời ngắn gọn, dễ hiểu, giống như cách con người trả lời trực tiếp.  
-    - Không lặp lại câu hỏi, không nhắc lại kết quả thô, chỉ đưa ra câu trả lời tự nhiên.  
+    You are an assistant specialized in explaining SQL results in a natural way.
+    Task:
+    - Read the user's question and the returned SQL result.
+    - Provide a concise, easy-to-understand answer, as a human would respond directly.
+    - Do not repeat the question, do not restate the raw result, only give the natural answer.
 
-    Câu hỏi của người dùng: {{question}}  
-    Kết quả SQL: {{result[0]}}  
+    User question: {{question}}
+    SQL Result: {{result[0]}}
 
-    Hãy trả lời:
+    Please answer:
     """
     explain_prompt = PromptBuilder(template=explain_template)
     llm_explainer = OllamaGenerator(model="hf.co/second-state/CodeQwen1.5-7B-Chat-GGUF:Q4_K_M")
@@ -194,7 +194,7 @@ def setup_pipeline():
         },
         {
             "condition": "{{'no_answer' in str_queries[0].lower()}}",
-            "output": "I cannot answer this question based on the available data. The database contains information about violations with columns for id, ten_nhan_vien, phong_ban, loai_vi_pham, khu_vuc, thoi_gian_vi_pham, and trang_thai. Please try asking a question related to these fields.",
+            "output": "I cannot answer this question based on the available data. The database contains information about violations with columns for id, employee_name, department, violation_type, area, violation_time, and status. Please try asking a question related to these fields.",
             "output_name": "no_answer",
             "output_type": str,
         },
