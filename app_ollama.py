@@ -140,25 +140,35 @@ def setup_pipeline():
     table_schema = get_table_schema(engine, "violations")
 
     sql_query = SQLQuery(engine)
-    template = """Please generate a PostgreSQL query to answer the following question.
-                Question: {{question}}
+    template = """You are an expert SQL assistant.
+                Your task: generate a PostgreSQL query that answers the latest USER question,
+                considering the full multi-turn conversation below.
 
-                Here is the database schema for the `violations` table:
+                Conversation so far (oldest first):
+                {% for m in history %}
+                Role: {{m.role}} | Content: {{m.content}}
+                {% endfor %}
+
+                Latest user question: {{question}}
+
+                Database schema for table `violations`:
                 ---
                 {{schema}}
                 ---
 
-                Here is some additional context from our knowledge base that might be helpful:
+                Retrieved knowledge base context:
                 ---
                 {% for doc in documents %}
                 {{ doc.content }}
                 {% endfor %}
                 ---
-                If the question cannot be answered using this table and these columns, 
-                respond exactly with 'no_answer'.
-                
-                Only return the SQL query without any additional text or explanation.
-                Always start your query with SELECT or WITH.
+
+                Rules:
+                - If the answer cannot be obtained from the given table/columns, output exactly: no_answer
+                - Return ONLY a valid SQL query (or no_answer). No narration.
+                - Start query with SELECT or WITH.
+                - Prefer explicit column names, avoid SELECT * unless necessary.
+                - Use table name violations.
                 """
     prompt = PromptBuilder(template=template)
     llm = OllamaGenerator(model="hf.co/second-state/CodeQwen1.5-7B-Chat-GGUF:Q4_K_M", keep_alive= -1)
@@ -252,54 +262,74 @@ def setup_pipeline():
 st.title("Bảng theo dõi vi phạm")
 st.write("Danh sách vi phạm hiện có trong hệ thống")
 
+# Initialize chat history in session state
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []  # stores ChatMessage objects
+
 violations_df = fetch_all_violations()
 st.dataframe(violations_df, use_container_width=True)
 
 st.subheader("Ask questions about violations")
-user_question = st.text_input("Đặt câu hỏi về database:", placeholder="Ví dụ: Hôm nay có mấy người vi phạm")
 
-if st.button("Send"):
-    if user_question:
-        with st.spinner("Đang xử lý câu hỏi..."):
-            try:
-                start_time = time.time() # Bắt đầu tính giờ
+# Display existing chat history
+for msg in st.session_state.chat_history:
+    role = msg.role.name.lower() if isinstance(msg, ChatMessage) else msg.get("role", "user")
+    content = msg.text if isinstance(msg, ChatMessage) else msg.get("content", "")
+    with st.chat_message(role):
+        st.markdown(content)
 
-                # Initialize pipeline
-                sql_pipeline = setup_pipeline()
-
-                # Chạy pipeline với câu hỏi của người dùng và ngữ cảnh mới
-                result = sql_pipeline.run({
-                    "text_embedder": {"text": user_question},
-                    "prompt": {
-                        "question": user_question,
-                        "schema": get_table_schema(engine, "violations")
-                    },
-                    "explain_prompt": {"question": user_question},
-                }, include_outputs_from= ["llm_explainer", "sql_querier", "llm", "prompt", "router", "error_router", "explain_prompt"])
-
-                end_time = time.time() # Kết thúc tính giờ
-                execution_time = end_time - start_time
-                result['execution_time'] = execution_time # Thêm thời gian thực thi vào kết quả
-
-                st.session_state.last_result = result
-
-                if "no_answer" in result["router"]:
-                    st.warning(result["router"]["no_answer"])
-                elif "sql_error" in result["error_router"]:
-                    st.error(f"Đã xảy ra lỗi khi thực thi SQL:\n{result['error_router']['sql_error']}")
+user_question = st.chat_input("Đặt câu hỏi về database (ví dụ: Hôm nay có mấy người vi phạm)")
+if user_question:
+    st.session_state.chat_history.append(ChatMessage.from_user(user_question))
+    with st.chat_message("user"):
+        st.markdown(user_question)
+    with st.spinner("Đang xử lý câu hỏi..."):
+        try:
+            start_time = time.time()
+            sql_pipeline = setup_pipeline()
+            history_payload = [
+                {"role": m.role.name.lower(), "content": m.text} if isinstance(m, ChatMessage) else m
+                for m in st.session_state.chat_history
+            ]
+            result = sql_pipeline.run({
+                "text_embedder": {"text": user_question},
+                "prompt": {
+                    "question": user_question,
+                    "schema": get_table_schema(engine, "violations"),
+                    "history": history_payload
+                },
+                "explain_prompt": {"question": user_question},
+            }, include_outputs_from=["llm_explainer", "sql_querier", "llm", "prompt", "router", "error_router", "explain_prompt"])
+            end_time = time.time()
+            execution_time = end_time - start_time
+            result['execution_time'] = execution_time
+            st.session_state.last_result = result
+            assistant_text = None
+            if "no_answer" in result["router"]:
+                assistant_text = result["router"]["no_answer"]
+                with st.chat_message("assistant"):
+                    st.warning(assistant_text)
+            elif "sql_error" in result["error_router"]:
+                assistant_text = f"Đã xảy ra lỗi khi thực thi SQL:\n{result['error_router']['sql_error']}"
+                with st.chat_message("assistant"):
+                    st.error(assistant_text)
                     st.code(result['sql_querier']['queries'][0], language='sql')
-                elif result["llm_explainer"]["replies"]:
-                    explanation = result['llm_explainer']['replies'][0]
-                    st.success(explanation)
-                save_result(result, log_path)
-                # Log for analytics   
-
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
-                import traceback
-                st.error(traceback.format_exc())
-    else:
-        st.warning("Vui lòng nhập câu hỏi")
+            elif result["llm_explainer"]["replies"]:
+                assistant_text = result['llm_explainer']['replies'][0]
+                with st.chat_message("assistant"):
+                    st.success(assistant_text)
+            if assistant_text:
+                st.session_state.chat_history.append(ChatMessage.from_assistant(assistant_text))
+            # Attach chat history snapshot for logging (serializable via custom serializer)
+            result['chat_history'] = st.session_state.chat_history
+            save_result(result, log_path)
+        except Exception as e:
+            err_text = f"Error: {str(e)}"
+            st.session_state.chat_history.append(ChatMessage.from_assistant(err_text))
+            with st.chat_message("assistant"):
+                st.error(err_text)
+            import traceback
+            st.error(traceback.format_exc())
 
 # Add debug expander
 with st.expander("Debug Info"):
