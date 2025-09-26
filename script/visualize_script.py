@@ -146,7 +146,7 @@ def build_dataframe(log_path: Path) -> pd.DataFrame:
 
 def main():
     base = Path(__file__).parent
-    log_file = base / "logs" / "results.jsonl"
+    log_file = base.parent / "output" / "logs" / "results.jsonl"
     if not log_file.exists():
         print(f"Không tìm thấy file: {log_file}")
         return
@@ -174,7 +174,7 @@ def main():
     cols = [c for c in cols if c in df.columns]
     #print(df[cols].to_string(index=False))
 
-    out_html = base / "report.html"
+    out_html = base.parent / "output" / "report.html"
     df_html = df.copy()
 
     # Các cột có thể chứa nội dung dài sẽ được đặt trong thẻ <details>

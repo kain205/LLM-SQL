@@ -22,7 +22,7 @@ if not DATABASE_URL:
 engine = create_engine(DATABASE_URL)
 
 # log file for analytics
-log_path = "logs/results.jsonl"
+log_path = "output/logs/results.jsonl"
 os.makedirs(os.path.dirname(log_path), exist_ok= True)
 def _json_serializer(obj):
     """

@@ -1,4 +1,4 @@
 test.py
 .env
-logs/
-report.html
+output/logs/
+output/report.html

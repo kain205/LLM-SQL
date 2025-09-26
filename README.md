@@ -79,7 +79,7 @@ This project is a Streamlit web application that allows users to ask questions i
 1.  **Set up the database:**
     Run the setup script to create the `violations` table and populate it with sample data.
     ```bash
-    python setup_db.py
+    python scripts/setup_db.py
     ```
 
 2.  **Run the Streamlit application:**
@@ -92,7 +92,7 @@ This project is a Streamlit web application that allows users to ask questions i
 ## File Structure
 
 *   `app.py`: The main Streamlit application file containing the UI and Haystack pipeline logic.
-*   `setup_db.py`: A script to initialize the database by creating and populating the `violations` table.
+*   `scripts/setup_db.py`: A script to initialize the database by creating and populating the `violations` table.
 *   `requirements.txt`: A list of all Python libraries required for the project.
 *   `.env`: Stores environment variables like database credentials and API keys (not committed to version control).
 *   `app_log.json`: A log file that records all user interactions with the application.

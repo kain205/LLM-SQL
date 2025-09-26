@@ -55,7 +55,7 @@ def get_indexing_pipeline(doc_store: PgvectorDocumentStore):
     
     return indexing_pipeline
 
-def run_indexing(pipeline: Pipeline, knowledge_base_path="knowledge.txt"):
+def run_indexing(pipeline: Pipeline, knowledge_base_path="data/knowledge.txt"):
     """
     Runs the indexing pipeline on the specified knowledge base file.
     """
