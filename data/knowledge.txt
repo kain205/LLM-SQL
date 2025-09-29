@@ -16,46 +16,58 @@ The `violations` table is designed to record and manage all workplace rule viola
 ## Part 2: Detailed Column Explanations
 
 ### Column: `id`
-- **Meaning:** A unique identifier for each violation. This is the primary key of the table.
-- **Sample values:** `1`, `2`, `3`, ...
-
-### Column: `employee_name`
-- **Meaning:** Stores the full name of the employee who committed the violation.
-- **Sample values:** `'Nguyen Van A'`, `'Tran Thi B'`, `'Le Van C'`.
-
-### Column: `department`
-- **Meaning:** The department or unit where the employee works.
-- **Sample values:** `'Production'`, `'Logistics'`, `'Maintenance'`, `'Security'`, `'Office'`.
-
 ### Column: `violation_type`
-- **Meaning:** A specific description of the violation.
-- **Sample values:** `'Arriving late'`, `'Not wearing uniform'`, `'Not wearing a helmet'`.
-- **Synonym Analysis (Important):**
-    - **Arriving late:** `'Arriving late'` and `'Coming to work late'` have the same meaning.
-    - **Missing safety gear (helmet):** `'Not wearing helmet'`, `'Not using safety helmet'`, and `'Missing helmet at construction site'` all refer to the same offense of not wearing a safety helmet.
-    - **Improper parking:** `'Improper parking'` and `'Parking in a restricted area'` have the same meaning.
-    - **Incorrect uniform:** `'Not wearing uniform'` and `'Wearing incorrect uniform'` can be considered equivalent.
-
+- **Meaning:** A standardized description of the violation category.
+- **Sample values:** `'Arriving late'`, `'Missing safety gear'`, `'Improper conduct'`, `'Operational violation'`, `'Smoking violation'`.
+- **Synonym & Mapping Guidance (Important):**
+    - **Arriving late:** Phrases like `'coming to work late'` or `'late arrival'` map to the canonical value `'Arriving late'`.
+    - **Missing safety gear:** Covers references such as `'not wearing helmet'`, `'missing reflective vest'`, `'not wearing safety gloves'`, `'missing safety harness'`, or `'not wearing uniform'`.
+    - **Improper conduct:** Encompasses `'using phone during work hours'`, `'causing a disturbance'`, `'improper parking'`, `'leaving post'`, and other behavior-related issues.
+    - **Operational violation:** Includes items like `'improper machine operation'`, `'accessing forbidden websites'`, or other policy-breaking operational actions.
+    - **Smoking violation:** Maps any mention of `'smoking in restricted areas'` or `'smoking in the workshop'` to `'Smoking violation'`.
+### Column: `department`
 ### Column: `area`
-- **Meaning:** The specific location or area where the violation occurred.
-- **Sample values:** `'Workshop A'`, `'Gate 2'`, `'Parking Lot'`, `'Cafeteria'`.
-
-### Column: `violation_time`
-- **Meaning:** The exact timestamp when the violation occurred.
-- **Sample values:** `2025-09-21 10:00:00`, `2025-09-22 08:15:00`.
-
-### Column: `status`
-- **Meaning:** The processing status of the violation incident.
-- **Sample values:** `'Resolved'`, `'In Progress'`.
-
----
-
-## Part 3: Advanced Q&A-SQL Examples
-
-### Example: Time-based Conditional Queries
-- **User question:** "How many employees committed a violation yesterday?"
+- **Meaning:** The standardized location bucket where the violation occurred.
+- **Sample values:** `'Workshop Floor'`, `'Office Zone'`, `'Security Gate'`, `'Logistics Hub'`, `'Construction Zone'`.
+- **Synonym Guidance:**
+    - Map phrases like `'Workshop A'`, `'Workshop B'`, or `'Workshop C'` to `'Workshop Floor'`.
+    - `'Gate 1'`/`'Gate 2'` → `'Security Gate'`.
+    - `'Parking Lot'`, `'Corridor B'`, `'Warehouse Aisle'` → `'Logistics Hub'`.
+    - `'IT Office'`, `'HR Office'`, `'Meeting Room'` → `'Office Zone'`.
+    - `'Construction Site X'` or `'Building A fifth floor'` → `'Construction Zone'`.
+- **User question:** "How many violations are related to not wearing a helmet?"
 - **SQL command:**
   ```sql
+  SELECT COUNT(id) FROM public.violations WHERE violation_type = 'Missing safety gear';
+  ```
+- **User question:** "List all instances of arriving late."
+- **SQL command:**
+  ```sql
+  SELECT * FROM public.violations WHERE violation_type = 'Arriving late';
+  ```
+- **User question:** "Find violations from the 'Production' department on the workshop floor that are still 'In Progress'."
+- **SQL command:**
+  ```sql
+  SELECT * FROM public.violations WHERE department = 'Production' AND area = 'Workshop Floor' AND status = 'In Progress';
+  ```
+- "helmet violations" / "not wearing a helmet" → violation_type = 'Missing safety gear'
+- "late arrivals" → violation_type = 'Arriving late'
+- "workshop" → area = 'Workshop Floor'
+- "gate" / "checkpoint" → area = 'Security Gate'
+- "warehouse" / "parking" → area = 'Logistics Hub'
+### Column: `status`
+### Example Multi-step Question → Refined SQL
+Generated SQL:
+```sql
+SELECT COUNT(*) FROM public.violations
+WHERE DATE_TRUNC('week', violation_time) = DATE_TRUNC('week', CURRENT_DATE);
+```
+Refined SQL (adds status filter, same week scope):
+```sql
+SELECT COUNT(*) FROM public.violations
+WHERE DATE_TRUNC('week', violation_time) = DATE_TRUNC('week', CURRENT_DATE)
+  AND status = 'Resolved';
+```
   SELECT COUNT(DISTINCT employee_name) FROM public.violations WHERE DATE(violation_time) = CURRENT_DATE - INTERVAL '1 day';
   ```
 - **User question:** "List the violations from the last 7 days."
@@ -80,19 +92,19 @@ The `violations` table is designed to record and manage all workplace rule viola
 - **User question:** "How many violations are related to not wearing a helmet?"
 - **SQL command:**
   ```sql
-  SELECT COUNT(id) FROM public.violations WHERE violation_type IN ('Not wearing helmet', 'Not using safety helmet', 'Missing helmet at construction site');
+  SELECT COUNT(id) FROM public.violations WHERE violation_type = 'Missing safety gear';
   ```
 - **User question:** "List all instances of arriving late."
 - **SQL command:**
   ```sql
-  SELECT * FROM public.violations WHERE violation_type IN ('Arriving late', 'Coming to work late');
+  SELECT * FROM public.violations WHERE violation_type = 'Arriving late';
   ```
 
 ### Example: Queries with Multiple Conditions
-- **User question:** "Find violations from the 'Production' department in 'Workshop A' that are still 'In Progress'."
+- **User question:** "Find violations from the 'Production' department on the workshop floor that are still 'In Progress'."
 - **SQL command:**
   ```sql
-  SELECT * FROM public.violations WHERE department = 'Production' AND area = 'Workshop A' AND status = 'In Progress';
+  SELECT * FROM public.violations WHERE department = 'Production' AND area = 'Workshop Floor' AND status = 'In Progress';
   ```
 
 ### Example: Sorting and Limiting Queries
@@ -113,9 +125,11 @@ The `violations` table is designed to record and manage all workplace rule viola
 - "latest", "most recent", "recent" → ORDER BY violation_time DESC
 - "how many" → COUNT(...)
 - "list", "show all", "list all" → SELECT * (add filters if specified)
-- "helmet violations" / "not wearing a helmet" → violation_type IN ('Not wearing helmet', 'Not using safety helmet', 'Missing helmet at construction site')
-- "late arrivals" → violation_type IN ('Arriving late', 'Coming to work late')
-- "area" → area column
+- "helmet violations" / "not wearing a helmet" → violation_type = 'Missing safety gear'
+- "late arrivals" → violation_type = 'Arriving late'
+- "workshop" → area = 'Workshop Floor'
+- "gate" / "checkpoint" → area = 'Security Gate'
+- "warehouse" / "parking" → area = 'Logistics Hub'
 - "department" → department column
 - "top" / "highest" / "leaders" → ORDER BY <metric> DESC LIMIT n
 
