@@ -21,6 +21,7 @@ from haystack.components.embedders import SentenceTransformersTextEmbedder
 from template.prompt import SQL_PROMPT_TEMPLATE, EXPLAIN_PROMPT_TEMPLATE
 
 load_dotenv()
+MODEL_NAME = "hf.co/mradermacher/natural-sql-7b-i1-GGUF:Q4_K_M"
 # Create database connection
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
@@ -137,17 +138,15 @@ def setup_pipeline():
     text_embedder = SentenceTransformersTextEmbedder(model="all-MiniLM-L6-v2")
     retriever = PgvectorEmbeddingRetriever(document_store=document_store, top_k=3)
 
-    # Fetch table schema
-    table_schema = get_table_schema(engine, "violations")
 
     sql_query = SQLQuery(engine)
     prompt = PromptBuilder(template=SQL_PROMPT_TEMPLATE)
-    llm = OllamaGenerator(model="hf.co/second-state/CodeQwen1.5-7B-Chat-GGUF:Q4_K_M", keep_alive= -1)
+    llm = OllamaGenerator(model = MODEL_NAME, keep_alive= -1)
     converter = MDconverter()
 
 
     explain_prompt = PromptBuilder(template=EXPLAIN_PROMPT_TEMPLATE)
-    llm_explainer = OllamaGenerator(model="hf.co/second-state/CodeQwen1.5-7B-Chat-GGUF:Q4_K_M")
+    llm_explainer = OllamaGenerator(model= MODEL_NAME)
 
     routes = [
         {
