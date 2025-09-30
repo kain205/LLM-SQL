@@ -103,9 +103,11 @@ def load_chat_history(engine, session_id):
                 history.append(ChatMessage.from_assistant(content))
         return history
 
-def get_table_schema(engine, table_name):
+@st.cache_data
+def get_table_schema(table_name):
     """
     Fetches the schema of a given table and formats it as a string.
+    Uses the global 'engine' object.
     """
     try:
         inspector = inspect(engine)
@@ -177,7 +179,7 @@ class SQLQuery:
                 results.append(f"SQL Error: {str(e)}")
         return {'results': results, 'queries': sql_queries}
 
-# Setup Haystack pipeline
+@st.cache_resource
 def setup_pipeline():
     # RAG components
     document_store = PgvectorDocumentStore(
@@ -332,7 +334,7 @@ if user_question:
                 "text_embedder": {"text": user_question},
                 "prompt": {
                     "question": user_question,
-                    "schema": get_table_schema(engine, "violations"),
+                    "schema": get_table_schema("violations"),
                     "history": history_payload
                 },
                 "explain_prompt": {"question": user_question},
