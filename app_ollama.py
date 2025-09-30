@@ -184,7 +184,7 @@ def setup_pipeline():
     # RAG components
     document_store = PgvectorDocumentStore(
         connection_string= Secret.from_env_var("DATABASE_URL"),
-        table_name="haystack_documents",
+        table_name="haystack_documents_v2",
         embedding_dimension = 384 
     )
     text_embedder = SentenceTransformersTextEmbedder(model="all-MiniLM-L6-v2")

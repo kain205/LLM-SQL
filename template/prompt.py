@@ -9,7 +9,7 @@ SQL_PROMPT_TEMPLATE = """You are an expert SQL assistant.
 
                 Latest user question: {{question}}
 
-                Database schema for table `violations`:
+                Database schema for tables:
                 ---
                 {{schema}}
                 ---
