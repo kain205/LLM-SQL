@@ -1,0 +1,135 @@
+[
+  {
+    "id": "biz_logic_001",
+    "type": "business_rule",
+    "category": "definitions",
+    "keywords": ["unresolved", "in progress", "pending", "open"],
+    "content": "A violation is considered 'unresolved', 'in progress', or 'pending' when the status column has the value 'In Progress'."
+  },
+  {
+    "id": "biz_logic_002",
+    "type": "business_rule",
+    "category": "definitions",
+    "keywords": ["resolved", "completed", "closed"],
+    "content": "A violation is considered 'resolved' or 'completed' when the status column has the value 'Resolved'."
+  },
+  {
+    "id": "synonym_mapping_001",
+    "type": "synonym",
+    "category": "violation_type",
+    "keywords": ["helmet", "vest", "gloves", "harness", "uniform"],
+    "content": "User questions about missing safety gear (e.g., 'not wearing helmet', 'missing reflective vest') map to the SQL condition: violation_type = 'Missing safety gear'"
+  },
+  {
+    "id": "synonym_mapping_002",
+    "type": "synonym",
+    "category": "violation_type",
+    "keywords": ["late", "tardy", "arrival"],
+    "content": "User questions about arriving late (e.g., 'coming to work late', 'late arrival') map to the SQL condition: violation_type = 'Arriving late'"
+  },
+  {
+    "id": "synonym_mapping_003",
+    "type": "synonym",
+    "category": "area",
+    "keywords": ["workshop", "workshop a", "workshop b"],
+    "content": "User questions about the workshop area map to the SQL condition: area = 'Workshop Floor'"
+  },
+  {
+    "id": "synonym_mapping_004",
+    "type": "synonym",
+    "category": "area",
+    "keywords": ["it office", "hr office", "meeting room"],
+    "content": "User questions about office areas (e.g., 'IT Office', 'HR Office') map to the SQL condition: area = 'Office Zone'"
+  },
+  {
+    "id": "synonym_mapping_005",
+    "type": "synonym",
+    "category": "area",
+    "keywords": ["warehouse", "parking", "corridor"],
+    "content": "User questions about logistics areas (e.g., 'warehouse', 'parking lot') map to the SQL condition: area = 'Logistics Hub'"
+  },
+  {
+    "id": "temporal_mapping_001",
+    "type": "temporal_rule",
+    "category": "temporal",
+    "keywords": ["today"],
+    "content": "The user phrase 'today' maps to the SQL condition: DATE(violation_time) = CURRENT_DATE"
+  },
+  {
+    "id": "temporal_mapping_002",
+    "type": "temporal_rule",
+    "category": "temporal",
+    "keywords": ["yesterday"],
+    "content": "The user phrase 'yesterday' maps to the SQL condition: DATE(violation_time) = CURRENT_DATE - INTERVAL '1 day'"
+  },
+  {
+    "id": "temporal_mapping_003",
+    "type": "temporal_rule",
+    "category": "temporal",
+    "keywords": ["this week", "current week"],
+    "content": "The user phrase 'this week' maps to the SQL condition: DATE_TRUNC('week', violation_time) = DATE_TRUNC('week', CURRENT_DATE)"
+  },
+  {
+    "id": "temporal_mapping_004",
+    "type": "temporal_rule",
+    "category": "temporal",
+    "keywords": ["this month", "current month"],
+    "content": "The user phrase 'this month' maps to the SQL condition: DATE_TRUNC('month', violation_time) = DATE_TRUNC('month', CURRENT_DATE)"
+  },
+  {
+    "id": "reasoning_rule_001",
+    "type": "reasoning_guidance",
+    "category": "disambiguation",
+    "keywords": ["people", "employees", "staff", "different people", "unique employees"],
+    "content": "When a user asks to count 'people' or 'employees', use COUNT(DISTINCT employee_name) to count unique individuals."
+  },
+  {
+    "id": "reasoning_rule_002",
+    "type": "reasoning_guidance",
+    "category": "disambiguation",
+    "keywords": ["how many times", "number of violations", "incidents", "records"],
+    "content": "When a user asks 'how many times' or for the 'number of violations', count the total records using COUNT(*)."
+  },
+  {
+    "id": "sql_example_001",
+    "type": "sql_example",
+    "category": "aggregation",
+    "keywords": ["count by department", "violations per department"],
+    "content": "To count violations by department and sort them, use the query: SELECT department, COUNT(id) AS violation_count FROM public.violations GROUP BY department ORDER BY violation_count DESC;"
+  },
+  {
+    "id": "sql_example_002",
+    "type": "sql_example",
+    "category": "aggregation",
+    "keywords": ["most violations", "top department", "highest number"],
+    "content": "To find which department has the most unresolved violations, use the query: SELECT department, COUNT(id) AS violation_count FROM public.violations WHERE status = 'In Progress' GROUP BY department ORDER BY violation_count DESC LIMIT 1;"
+  },
+  {
+    "id": "sql_example_003",
+    "type": "sql_example",
+    "category": "multi_condition",
+    "keywords": ["production", "workshop", "in progress"],
+    "content": "To find violations with multiple conditions, such as those in the 'Production' department, on the 'Workshop Floor', that are 'In Progress', use: SELECT * FROM public.violations WHERE department = 'Production' AND area = 'Workshop Floor' AND status = 'In Progress';"
+  },
+  {
+    "id": "sql_example_004",
+    "type": "sql_example",
+    "category": "analytical",
+    "keywords": ["percentage", "distribution", "unresolved by department"],
+    "content": "To calculate the percentage of unresolved violations by department, use the query: SELECT department, COUNT(*) FILTER (WHERE status = 'In Progress') AS unresolved, COUNT(*) AS total, ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'In Progress') / COUNT(*), 2) AS unresolved_pct FROM public.violations GROUP BY department ORDER BY unresolved_pct DESC;"
+  },
+  {
+    "id": "conversation_rule_001",
+    "type": "conversation_handling",
+    "category": "follow-up",
+    "keywords": ["those", "them", "of these", "follow up"],
+    "content": "When handling follow-up questions with pronouns like 'those' or 'them', retain the filters from the previous query and add the new conditions. For example, if the previous query was for 'this week', and the user asks 'how many of those are resolved?', the new query must contain both the 'this week' filter and the 'resolved' status filter."
+  },
+  {
+  "id": "sql_example_008",
+  "type": "sql_example",
+  "category": "temporal_aggregation",
+  "keywords": ["time of day", "hourly", "peak time", "most often occur", "by hour"],
+  "content": "To find the hour of the day when violations occur most frequently, extract the hour from the timestamp, group by it, and order by the count: SELECT EXTRACT(HOUR FROM violation_time) AS hour_of_day, COUNT(id) AS violation_count FROM public.violations GROUP BY hour_of_day ORDER BY violation_count DESC LIMIT 1;"
+  }
+]

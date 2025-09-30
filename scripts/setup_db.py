@@ -12,27 +12,35 @@ engine = create_engine(DATABASE_URL, future=True)
 
 def setup_database():
     """
-    Drops existing tables and recreates them with fresh sample data.
-    This is useful for development to reset the database to a known state.
+    Drops existing tables and recreates them with the correct schema,
+    including a master 'departments' table and the foreign key relationship.
     """
     print("Resetting database...")
     with engine.begin() as conn:
-        # --- PHẦN 1: DROP TẤT CẢ CÁC BẢNG ---
-        # Drop các bảng theo thứ tự ngược lại của sự phụ thuộc (bảng con trước, bảng cha sau)
-        # Hoặc đơn giản là dùng CASCADE
-        print("Dropping tables 'violations', 'chat_messages', 'chat_sessions' if they exist...")
+        # --- PART 1: DROP ALL TABLES ---
+        # Dropping with CASCADE handles dependencies correctly.
+        print("Dropping all tables if they exist...")
         conn.execute(text("DROP TABLE IF EXISTS public.violations CASCADE;"))
-        conn.execute(text("DROP TABLE IF EXISTS public.chat_messages CASCADE;")) # Thêm vào
-        conn.execute(text("DROP TABLE IF EXISTS public.chat_sessions CASCADE;"))  # Thêm vào
+        conn.execute(text("DROP TABLE IF EXISTS public.chat_messages CASCADE;"))
+        conn.execute(text("DROP TABLE IF EXISTS public.chat_sessions CASCADE;"))
+        conn.execute(text("DROP TABLE IF EXISTS public.departments CASCADE;")) # -- NEW --
 
-        # --- PHẦN 2: TẠO LẠI CÁC BẢNG ---
-        # Tạo bảng violations
+        # --- PART 2: RECREATE TABLES ---
+        # -- NEW --: Create the master 'departments' table first.
+        print("Creating 'departments' table...")
+        conn.execute(text("""
+            CREATE TABLE public.departments (
+                department_name TEXT PRIMARY KEY
+            );
+        """))
+
+        # -- MODIFIED --: Create the 'violations' table with a foreign key.
         print("Creating 'violations' table...")
         conn.execute(text("""
             CREATE TABLE public.violations (
                 id SERIAL PRIMARY KEY,
                 employee_name TEXT,
-                department TEXT,
+                department TEXT REFERENCES public.departments(department_name), -- MODIFIED --
                 violation_type TEXT,
                 area TEXT,
                 violation_time TIMESTAMP,
@@ -40,7 +48,7 @@ def setup_database():
             );
         """))
 
-        # Tạo bảng chat_sessions (phải tạo trước chat_messages vì có foreign key)
+        # Create chat tables (unchanged)
         print("Creating 'chat_sessions' table...")
         conn.execute(text("""
             CREATE TABLE public.chat_sessions (
@@ -50,7 +58,6 @@ def setup_database():
             );
         """))
         
-        # Tạo bảng chat_messages
         print("Creating 'chat_messages' table...")
         conn.execute(text("""
             CREATE TABLE public.chat_messages (
@@ -63,11 +70,29 @@ def setup_database():
             );
         """))
 
-        # --- PHẦN 3: THÊM DỮ LIỆU MẪU (NẾU CẦN) ---
+        # --- PART 3: INSERT SAMPLE DATA ---
+        # -- NEW --: Populate the 'departments' table.
+        # This includes all departments from your original data, plus two extra for testing.
+        print("Inserting sample data for 'departments'...")
+        conn.execute(text("""
+            INSERT INTO public.departments (department_name) VALUES
+            ('Production'),
+            ('Logistics'),
+            ('Maintenance'),
+            ('Construction'),
+            ('Security'),
+            ('Office'),
+            ('Sales'),
+            ('IT'),
+            ('HR'),
+            ('R&D'),          -- For testing "no violations"
+            ('Marketing');    -- For testing "no violations"
+        """))
+
+        # Your original violations data is unchanged.
         print("Inserting sample data for 'violations'...")
         conn.execute(text("""
             INSERT INTO public.violations (employee_name, department, violation_type, area, violation_time, status) VALUES
-            -- ... (dữ liệu mẫu của bạn giữ nguyên) ...
             ('Nguyen Van A', 'Production', 'Arriving late', 'Workshop Floor', NOW() - INTERVAL '15 days', 'Resolved'),
             ('Nguyen Van A', 'Production', 'Missing safety gear', 'Workshop Floor', NOW() - INTERVAL '10 days', 'Resolved'),
             ('Nguyen Van A', 'Production', 'Improper conduct', 'Office Zone', NOW() - INTERVAL '2 days', 'In Progress'),
@@ -91,7 +116,7 @@ def setup_database():
             ('Chu Chi Nhuoc', 'HR', 'Improper conduct', 'Office Zone', NOW() - INTERVAL '4 days', 'Resolved');
         """))
         
-    print("Database reset complete. Tables 'violations', 'chat_sessions', and 'chat_messages' are ready.")
+    print("Database reset complete. All tables are ready.")
 
 if __name__ == "__main__":
     setup_database()
