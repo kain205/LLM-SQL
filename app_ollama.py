@@ -12,7 +12,8 @@ from haystack.dataclasses import ChatMessage
 from haystack_integrations.components.generators.ollama import OllamaGenerator
 from sqlalchemy import create_engine, text, inspect
 import json
-import time # Thêm import time
+import time 
+import uuid 
 
 # RAG imports
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
@@ -52,6 +53,55 @@ def save_result(data: dict, path: str):
     """
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(data, default=_json_serializer, ensure_ascii=False) + "\n")
+
+def save_chat_history_to_db(engine, session_id, chat_history):
+    with engine.connect() as connection:
+        with connection.begin() as transaction:
+            try:
+                messsages_to_save = [
+                    {"role": msg.role.name.lower(), "content": msg.text}
+                    for msg in chat_history
+                ]
+
+                connection.execute(text("DELETE FROM chat_messages WHERE session_id = :session_id"), {"session_id": session_id})
+                for message in messsages_to_save:
+                    stmt = text(
+                        """
+                        INSERT INTO chat_messages(session_id, role, content)
+                        VALUES (:session_id, :role, :content)
+                        """
+                    )
+                    connection.execute(stmt, {
+                        "session_id": session_id,
+                        "role": message["role"],
+                        "content": message["content"]
+                    })
+
+            except Exception as e:
+                st.error(f"Lỗi khi lưu lịch sử chat: {e}")
+                raise
+
+def get_chat_sessions(engine):
+    with engine.connect() as connection:
+        result = connection.execute(text("SELECT id, start_time FROM chat_sessions ORDER BY start_time DESC"))
+        return result.fetchall()    
+
+def load_chat_history(engine, session_id):
+    """Tải lịch sử tin nhắn của một phiên chat cụ thể."""
+    with engine.connect() as connection:
+        result = connection.execute(
+            text("SELECT role, content FROM chat_messages WHERE session_id = :session_id ORDER BY timestamp ASC"),
+            {"session_id": session_id}
+        )
+        # Chuyển đổi kết quả từ database thành list các đối tượng ChatMessage
+        history = []
+        for row in result.fetchall():
+            role, content = row
+            if role == 'user':
+                history.append(ChatMessage.from_user(content))
+            else:
+                history.append(ChatMessage.from_assistant(content))
+        return history
 
 def get_table_schema(engine, table_name):
     """
@@ -218,11 +268,40 @@ def setup_pipeline():
 
 # Streamlit UI
 st.title("Bảng theo dõi vi phạm")
-st.write("Danh sách vi phạm hiện có trong hệ thống")
 
-# Initialize chat history in session state
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []  # stores ChatMessage objects
+with st.sidebar:
+    st.header("Chat History")
+    if st.button("New Chat"):
+        if "session_id" in st.session_state:
+            del st.session_state.session_id
+        if "chat_history" in st.session_state:
+            del st.session_state.chat_history
+        st.rerun()
+
+    try:
+        past_sessions = get_chat_sessions(engine)
+        if not past_sessions:
+            st.caption("No past conversations found.")
+        else:
+            for session in past_sessions:
+                session_id, start_time = session
+                session_time_str = start_time.strftime("%d %b %Y, %H:%M")
+                
+                if st.button(f"Chat from {session_time_str}", key=session_id, use_container_width=True):
+                    st.session_state.session_id = session_id
+                    st.session_state.chat_history = load_chat_history(engine, session_id)
+                    st.rerun()
+    except Exception as e:
+        st.error("Lỗi khi tải lịch sử chat: {e}")
+        raise
+
+if "session_id" not in st.session_state:
+    with engine.connect() as connection:
+        with connection.begin() as transaction:
+            result = connection.execute(text("INSERT INTO chat_sessions (start_time) VALUES (DEFAULT) RETURNING id"))
+            st.session_state.session_id = result.scalar_one()
+            st.session_state.chat_history = []
+st.write("Danh sách vi phạm hiện có trong hệ thống")
 
 violations_df = fetch_all_violations()
 st.dataframe(violations_df, use_container_width=True)
@@ -236,7 +315,7 @@ for msg in st.session_state.chat_history:
     with st.chat_message(role):
         st.markdown(content)
 
-user_question = st.chat_input("Đặt câu hỏi về database (ví dụ: Hôm nay có mấy người vi phạm)")
+user_question = st.chat_input("Ask database (Ex: How many violations are recorded in the system?)")
 if user_question:
     st.session_state.chat_history.append(ChatMessage.from_user(user_question))
     with st.chat_message("user"):
@@ -278,6 +357,7 @@ if user_question:
                     st.success(assistant_text)
             if assistant_text:
                 st.session_state.chat_history.append(ChatMessage.from_assistant(assistant_text))
+            save_chat_history_to_db(engine, st.session_state.session_id, st.session_state.chat_history)
             # Attach chat history snapshot for logging (serializable via custom serializer)
             result['chat_history'] = st.session_state.chat_history
             save_result(result, log_path)
