@@ -102,7 +102,7 @@
     "type": "sql_example",
     "category": "aggregation",
     "keywords": ["most violations", "top department", "highest number"],
-    "content": "To find which department has the most unresolved violations, use the query: SELECT department, COUNT(id) AS violation_count FROM public.violations WHERE status = 'In Progress' GROUP BY department ORDER BY violation_count DESC LIMIT 1;"
+    "content": "To find which department has the most unresolved violations, use:\n\nSELECT department, COUNT(id) AS violation_count \nFROM violations \nWHERE status = 'In Progress' \nGROUP BY department \nORDER BY violation_count DESC \nLIMIT 1;\n\nFor multiple conditions on same group, use HAVING with CASE:\nSELECT employee_name\nFROM violations\nGROUP BY employee_name\nHAVING COUNT(*) >= 3 AND SUM(CASE WHEN status = 'In Progress' THEN 1 ELSE 0 END) >= 1;"
   },
   {
     "id": "sql_example_003",
@@ -131,5 +131,166 @@
   "category": "temporal_aggregation",
   "keywords": ["time of day", "hourly", "peak time", "most often occur", "by hour"],
   "content": "To find the hour of the day when violations occur most frequently, extract the hour from the timestamp, group by it, and order by the count: SELECT EXTRACT(HOUR FROM violation_time) AS hour_of_day, COUNT(id) AS violation_count FROM public.violations GROUP BY hour_of_day ORDER BY violation_count DESC LIMIT 1;"
+  },
+  {
+    "id": "sql_example_009",
+    "type": "sql_example",
+    "category": "anti_join",
+    "keywords": ["no violations", "without violations", "departments with zero", "empty"],
+    "content": "To find departments with no violations, perform a LEFT JOIN from a master departments list to the violations table and filter for entries where the violation side is NULL: SELECT d.department_name FROM public.departments d LEFT JOIN public.violations v ON d.department_name = v.department WHERE v.id IS NULL;"
+  },
+  {
+    "id": "synonym_mapping_006",
+    "type": "synonym",
+    "category": "violation_type",
+    "keywords": ["smoking", "smoking rule", "smoking in the workshop"],
+    "content": "User questions about smoking map to the SQL condition: violation_type = 'Smoking violation'"
+  },
+  {
+    "id": "sql_example_010",
+    "type": "sql_example",
+    "category": "aggregation_filter",
+    "keywords": ["only person", "only one", "unique person", "solely responsible"],
+    "content": "To find the only person who meets a specific condition, filter for that condition, then group by the person's name and use a HAVING clause to ensure the count of matching groups is 1. Example: SELECT employee_name FROM public.violations WHERE violation_type = 'Smoking violation' GROUP BY employee_name HAVING COUNT(DISTINCT id) = 1;"
+  },
+  {
+    "id": "column_values_001",
+    "type": "column_values",
+    "category": "department",
+    "keywords": ["departments", "list of departments", "all departments", "master list", "departments with zero violations"],
+    "content": "This is the master list of all official departments. It is used for queries that require a complete list, such as finding departments with no violations. The available departments are: Production, Logistics, Maintenance, Construction, Security, Office, Sales, IT, HR, R&D, and Marketing."
+  },
+  {
+    "id": "column_values_002",
+    "type": "column_values",
+    "category": "area",
+    "keywords": ["areas", "locations", "zones", "places", "where", "site", "list of areas"],
+    "content": "This document lists all valid locations, places, or sites for location-based queries (e.g., 'where did it happen?', 'in the workshop', 'at the security gate'). The known operational areas are: Workshop Floor, Office Zone, Security Gate, Logistics Hub, and Construction Zone."
+  },
+  {
+    "id": "sql_example_011",
+    "type": "sql_example",
+    "category": "aggregation_filter",
+    "keywords": ["repeat", "multiple times", "duplicate", "more than once", "same error", "re-offenders"],
+    "content": "To find items that share the same characteristic multiple times (e.g., an employee committing the same violation more than once), group by both the item and the characteristic, then use a HAVING clause to filter for counts greater than one. Example: SELECT employee_name, violation_type, COUNT(id) AS occurrence_count FROM public.violations GROUP BY employee_name, violation_type HAVING COUNT(id) > 1;"
+  },
+  {
+    "id": "reasoning_rule_003",
+    "type": "reasoning_guidance",
+    "category": "missing_data",
+    "keywords": ["filter by", "attribute", "property", "missing column", "no data", "no answer"],
+    "content": "If a user asks to filter or calculate based on an attribute that does not have a corresponding column in the schema (e.g., filtering by 'employee age' when there is no 'age' column, or by 'product cost' when there is no 'cost' column), the query is impossible. You must output 'no_answer'."
+  },
+  {
+    "id": "sql_example_012",
+    "type": "sql_example",
+    "category": "distinct_query",
+    "keywords": ["list all", "show all types", "categories", "distinct"],
+    "content": "When user asks to 'list all types' or 'show all categories' of violations, use: SELECT DISTINCT violation_type FROM violations"
+  },
+  {
+    "id": "temporal_mapping_005",
+    "type": "temporal_rule",
+    "category": "temporal",
+    "keywords": ["weekend", "saturday", "sunday"],
+    "content": "Weekend queries map to: EXTRACT(DOW FROM violation_time) IN (0, 6) where 0=Sunday, 6=Saturday"
+  },
+  {
+    "id": "reasoning_rule_004",
+    "content": "When user asks for entities with MULTIPLE counting conditions (e.g., 'at least X total violations AND at least Y with status Z'), use conditional aggregation with CASE WHEN:\n\nSELECT employee_name\nFROM violations\nGROUP BY employee_name\nHAVING COUNT(*) >= X\n   AND SUM(CASE WHEN status = 'Z' THEN 1 ELSE 0 END) >= Y;\n\nThis counts total records AND specific condition separately.",
+    "type": "reasoning_guidance",
+    "category": "aggregation",
+    "keywords": ["at least", "multiple conditions", "counting", "HAVING", "CASE WHEN", "conditional aggregation"]
+  },
+  {
+    "id": "temporal_mapping_006",
+    "type": "temporal_rule",
+    "category": "temporal",
+    "keywords": ["last month", "previous month"],
+    "content": "The user phrase 'last month' or 'previous month' maps to the SQL condition: DATE_TRUNC('month', violation_time) = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')"
+  },
+  {
+    "id": "temporal_mapping_007",
+    "type": "temporal_rule",
+    "category": "temporal",
+    "keywords": ["first quarter", "Q1", "quarter 1"],
+    "content": "The user phrase 'first quarter' or 'Q1' maps to the SQL condition: EXTRACT(QUARTER FROM violation_time) = 1 AND EXTRACT(YEAR FROM violation_time) = EXTRACT(YEAR FROM CURRENT_DATE)"
+  },
+  {
+    "id": "sql_example_013",
+    "type": "sql_example",
+    "category": "ranking",
+    "keywords": ["most recent", "latest", "last violation", "newest"],
+    "content": "To find the most recent record, order by the timestamp column in descending order and limit to 1: SELECT * FROM violations ORDER BY violation_time DESC LIMIT 1;"
+  },
+  {
+    "id": "sql_example_014",
+    "type": "sql_example",
+    "category": "ranking",
+    "keywords": ["which day", "date with most", "busiest day", "peak day"],
+    "content": "To find which day had the most violations, extract the date from the timestamp, group by it, and order by count: SELECT DATE(violation_time) AS violation_date, COUNT(id) AS violation_count FROM violations GROUP BY violation_date ORDER BY violation_count DESC LIMIT 1;"
+  },
+  {
+    "id": "sql_example_015",
+    "type": "sql_example",
+    "category": "rate_calculation",
+    "keywords": ["resolution rate", "resolved rate", "percentage resolved", "rate by department"],
+    "content": "To calculate the resolution rate (percentage of resolved violations) by department:\n\nSELECT department,\n  COUNT(*) AS total_violations,\n  SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) AS resolved_count,\n  ROUND(100.0 * SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) / COUNT(*), 2) AS resolution_rate_pct\nFROM violations\nGROUP BY department\nORDER BY resolution_rate_pct DESC;"
+  },
+  {
+    "id": "sql_example_016",
+    "type": "sql_example",
+    "category": "multi_area",
+    "keywords": ["both areas", "in multiple locations", "office and construction", "different areas"],
+    "content": "To find entities that appear in multiple specific areas, use HAVING with conditional aggregation:\n\nSELECT employee_name\nFROM violations\nWHERE area IN ('Office Zone', 'Construction Zone')\nGROUP BY employee_name\nHAVING COUNT(DISTINCT area) = 2;\n\nThis ensures the employee has violations in BOTH specified areas."
+  },
+  {
+    "id": "sql_example_017",
+    "type": "sql_example",
+    "category": "diversity_ranking",
+    "keywords": ["most different", "most areas", "diversity", "various locations", "most spread out"],
+    "content": "To find which entity appears in the most different categories (e.g., employee in most areas), use COUNT(DISTINCT category_column):\n\nSELECT employee_name, COUNT(DISTINCT area) AS area_count\nFROM violations\nGROUP BY employee_name\nORDER BY area_count DESC\nLIMIT 1;\n\nTo show all tied for first place, replace LIMIT with: WHERE area_count = (SELECT MAX(...))."
+  },
+  {
+    "id": "sql_example_018",
+    "type": "sql_example",
+    "category": "comparison",
+    "keywords": ["compare", "between departments", "versus", "production vs logistics"],
+    "content": "To compare metrics between specific entities (e.g., departments), filter for those entities and group by the entity column:\n\nSELECT department, COUNT(id) AS violation_count\nFROM violations\nWHERE department IN ('Production', 'Logistics')\nGROUP BY department\nORDER BY violation_count DESC;"
+  },
+  {
+    "id": "reasoning_rule_005",
+    "type": "reasoning_guidance",
+    "category": "ranking_ties",
+    "keywords": ["most", "top", "highest", "ties", "multiple winners"],
+    "content": "When finding 'the most' or 'the top' of something, be aware that LIMIT 1 only returns one result even if there are ties. To show all tied results, use a subquery or CTE with MAX() to find the highest value, then filter for all records matching that value."
+  },
+  {
+    "id": "synonym_mapping_007",
+    "type": "synonym",
+    "category": "area",
+    "keywords": ["construction", "building site", "construction area"],
+    "content": "User questions about construction areas map to the SQL condition: area = 'Construction Zone'"
+  },
+  {
+    "id": "synonym_mapping_008",
+    "type": "synonym",
+    "category": "area",
+    "keywords": ["office", "admin", "administrative"],
+    "content": "User questions about office or administrative areas map to the SQL condition: area = 'Office Zone'"
+  },
+  {
+    "id": "reasoning_rule_006",
+    "type": "reasoning_guidance",
+    "category": "highest_rate",
+    "keywords": ["highest rate", "best rate", "top percentage", "most resolved"],
+    "content": "When user asks for 'highest rate of X', they want the entity with the best percentage/ratio, not just the highest count. Calculate the rate as (count of X / total count) * 100, then order by this calculated rate."
+  },
+  {
+    "id": "sql_example_019",
+    "type": "sql_example",
+    "category": "area_filter",
+    "keywords": ["most common in area", "top violation in location", "frequent in workshop"],
+    "content": "To find the most common violation type in a specific area, filter by area first, then group by violation type:\n\nSELECT violation_type, COUNT(id) AS occurrence_count\nFROM violations\nWHERE area = 'Workshop Floor'\nGROUP BY violation_type\nORDER BY occurrence_count DESC\nLIMIT 1;"
   }
 ]

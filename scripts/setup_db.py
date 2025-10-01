@@ -95,13 +95,16 @@ def setup_database():
             INSERT INTO public.violations (employee_name, department, violation_type, area, violation_time, status) VALUES
             ('Nguyen Van A', 'Production', 'Arriving late', 'Workshop Floor', NOW() - INTERVAL '15 days', 'Resolved'),
             ('Nguyen Van A', 'Production', 'Missing safety gear', 'Workshop Floor', NOW() - INTERVAL '10 days', 'Resolved'),
+            ('Nguyen Van A', 'Production', 'Missing safety gear', 'Workshop Floor', NOW() - INTERVAL '8 days', 'Resolved'),  -- Same violation type again
             ('Nguyen Van A', 'Production', 'Improper conduct', 'Office Zone', NOW() - INTERVAL '2 days', 'In Progress'),
             ('Tran Thi B', 'Logistics', 'Missing safety gear', 'Security Gate', NOW() - INTERVAL '20 days', 'Resolved'),
             ('Tran Thi B', 'Logistics', 'Improper conduct', 'Logistics Hub', NOW() - INTERVAL '5 days', 'In Progress'),
+            ('Tran Thi B', 'Logistics', 'Improper conduct', 'Logistics Hub', NOW() - INTERVAL '3 days', 'Resolved'),  -- Same violation type again
             ('Le Van C', 'Production', 'Arriving late', 'Workshop Floor', NOW() - INTERVAL '1 day', 'In Progress'),
             ('Le Van C', 'Production', 'Missing safety gear', 'Workshop Floor', NOW() - INTERVAL '3 days', 'Resolved'),
             ('Le Van C', 'Production', 'Improper conduct', 'Office Zone', NOW(), 'In Progress'),
             ('Pham Van D', 'Maintenance', 'Missing safety gear', 'Logistics Hub', NOW() - INTERVAL '7 days', 'Resolved'),
+            ('Pham Van D', 'Maintenance', 'Missing safety gear', 'Logistics Hub', NOW() - INTERVAL '5 days', 'Resolved'),  -- Same violation type again
             ('Hoang Thi E', 'Logistics', 'Missing safety gear', 'Logistics Hub', NOW() - INTERVAL '4 days', 'Resolved'),
             ('Vu Van F', 'Production', 'Operational violation', 'Workshop Floor', NOW() - INTERVAL '6 days', 'In Progress'),
             ('Dang Thi H', 'Production', 'Missing safety gear', 'Construction Zone', NOW() - INTERVAL '1 day', 'In Progress'),
