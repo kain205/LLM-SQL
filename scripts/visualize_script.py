@@ -19,7 +19,7 @@ def _iter_json_objects(filepath: str | Path):
             yield obj
             i = end
         except json.JSONDecodeError:
-            # Bỏ qua các dòng không phải JSON hợp lệ hoặc dòng trống
+            # Skip lines that are not valid JSON or empty lines
             i += 1
             continue
 
@@ -53,7 +53,7 @@ def _parse_entry(obj: dict) -> dict:
     question = _extract_question(sql_prompt_content)
 
     # --- Explainer Prompt ---
-    # Sửa lỗi: Truy cập vào 'prompt' bên trong 'explain_prompt'
+    # Fix: Access 'prompt' inside 'explain_prompt'
     expl_prompt_block = obj.get("explain_prompt") or {}
     expl_prompt_content = expl_prompt_block.get("prompt", "")
 
@@ -67,7 +67,7 @@ def _parse_entry(obj: dict) -> dict:
     sql_llm_meta_list = llm_block.get("meta") or []
     sql_llm_meta = _first(sql_llm_meta_list, default={})
     sql_usage = sql_llm_meta.get("usage") or {}
-    model = sql_llm_meta.get("model", "") # Lấy tên model từ đây
+    model = sql_llm_meta.get("model", "") # Get model name from here
 
     # --- Explainer LLM Meta ---
     expl_block = obj.get("llm_explainer") or {}
@@ -91,7 +91,7 @@ def _parse_entry(obj: dict) -> dict:
     sql_q = obj.get("sql_querier") or {}
     query_result = ""
     if route == "sql_error":
-        # Lấy thông báo lỗi từ error_router
+        # Get error message from error_router
         query_result = error_router.get("sql_error", "")
     elif route == "sql_success":
         query_result = _first(sql_q.get("results"))
@@ -103,16 +103,16 @@ def _parse_entry(obj: dict) -> dict:
     expl_replies = expl_block.get("replies") or []
     explanation = str(_first(expl_replies)).strip()
 
-    # Lấy token cho từng LLM
+    # Get tokens for each LLM
     sql_prompt_tokens = sql_usage.get("prompt_tokens", 0)
     sql_completion_tokens = sql_usage.get("completion_tokens", 0)
     expl_prompt_tokens = expl_usage.get("prompt_tokens", 0)
     expl_completion_tokens = expl_usage.get("completion_tokens", 0)
 
-    # Tính tổng
+    # Calculate total
     total_tokens = sql_prompt_tokens + sql_completion_tokens + expl_prompt_tokens + expl_completion_tokens
 
-    # Lấy thời gian thực thi
+    # Get execution time
     execution_time = obj.get("execution_time", 0.0)
 
     return {
@@ -139,7 +139,7 @@ def build_dataframe(log_path: Path) -> pd.DataFrame:
         try:
             rows.append(_parse_entry(obj))
         except Exception:
-            # Bỏ qua nếu có lỗi khi phân tích một entry
+            # Skip if there's an error parsing an entry
             continue
     return pd.DataFrame(rows)
 
@@ -148,12 +148,12 @@ def main():
     base = Path(__file__).parent
     log_file = base.parent / "output" / "logs" / "results.jsonl"
     if not log_file.exists():
-        print(f"Không tìm thấy file: {log_file}")
+        print(f"File not found: {log_file}")
         return
 
     df = build_dataframe(log_file)
     if df.empty:
-        print("Không có dữ liệu.")
+        print("No data available.")
         return
 
     # Console view
@@ -177,16 +177,16 @@ def main():
     out_html = base.parent / "output" / "report.html"
     df_html = df.copy()
 
-    # Các cột có thể chứa nội dung dài sẽ được đặt trong thẻ <details>
+    # Columns that may contain long content will be placed in <details> tags
     long_text_cols = ["SQL_Prompt", "LLM_SQL", "Query_Result", "Explainer_Prompt", "Explanation"]
 
     for col in long_text_cols:
         if col in df_html.columns:
-            # Bỏ qua nếu ô trống để tránh tạo thẻ <details> không cần thiết
+            # Skip if cell is empty to avoid creating unnecessary <details> tags
             is_not_empty = df_html[col].astype(str).str.strip() != ""
             
-            # Bọc nội dung trong thẻ <details> với nút copy
-            # Sử dụng <pre><code> để giữ định dạng code/text và giúp JS dễ dàng lấy nội dung
+            # Wrap content in <details> tag with copy button
+            # Use <pre><code> to preserve code/text formatting and help JS easily get content
             df_html.loc[is_not_empty, col] = (
                 "<details>"
                 "<summary>Click to expand</summary>"
@@ -197,10 +197,10 @@ def main():
                 "</details>"
             )
 
-    # Chuyển DataFrame thành chuỗi HTML
+    # Convert DataFrame to HTML string
     html_table = df_html[cols].to_html(index=False, escape=False, border=0, classes="dataframe")
 
-    # Tạo một file HTML hoàn chỉnh với CSS và JavaScript
+    # Create a complete HTML file with CSS and JavaScript
     full_html = f"""
     <!DOCTYPE html>
     <html>
@@ -212,7 +212,7 @@ def main():
         table.dataframe {{
             border-collapse: collapse;
             border: 1px solid #ccc;
-            width: 100%; /* Làm cho bảng rộng tối đa */
+            width: 100%; /* Make table full width */
         }}
         table.dataframe th, table.dataframe td {{
             border: 1px solid #ccc;
@@ -223,7 +223,7 @@ def main():
         table.dataframe th {{
             background-color: #f2f2f2;
         }}
-        /* Đặt chiều rộng tối thiểu cho các cột nội dung dài */
+        /* Set minimum width for long content columns */
         table.dataframe th:nth-child({cols.index('LLM_SQL') + 1}),
         table.dataframe th:nth-child({cols.index('Query_Result') + 1}),
         table.dataframe th:nth-child({cols.index('Explanation') + 1}) {{
@@ -235,7 +235,7 @@ def main():
         }}
         details > summary {{
             cursor: pointer;
-            display: inline-block; /* Để summary và button trên cùng một hàng */
+            display: inline-block; /* To have summary and button on the same line */
         }}
         .copy-btn {{
             cursor: pointer;
@@ -252,17 +252,17 @@ def main():
             border: 1px solid #e0e0e0;
             padding: 10px;
             overflow-x: auto;
-            white-space: pre-wrap; /* Ngắt dòng tự động */
-            word-wrap: break-word; /* Ngắt từ nếu cần thiết */
+            white-space: pre-wrap; /* Automatic line wrapping */
+            word-wrap: break-word; /* Break words if necessary */
         }}
     </style>
     <script>
         function copyToClipboard(button) {{
-            // Tìm <code> bên trong <details> chứa nút bấm
+            // Find <code> inside the <details> containing the button
             var codeElement = button.parentElement.querySelector('code');
             if (!codeElement) return;
 
-            // Tạo một phạm vi chọn mới và thiết lập văn bản được chọn là nội dung của phần tử <code>
+            // Create a new selection range and set the selected text as the content of the <code> element
             var range = document.createRange();
             range.selectNodeContents(codeElement);
             var sel = window.getSelection();
@@ -270,7 +270,7 @@ def main():
             sel.addRange(range);
 
             try {{
-                // Sao chép nội dung đã chọn vào clipboard
+                // Copy the selected content to clipboard
                 var successful = document.execCommand('copy');
                 var msg = successful ? 'successful' : 'unsuccessful';
                 console.log('Copy text command was ' + msg);
@@ -278,7 +278,7 @@ def main():
                 console.error('Unable to copy text: ', err);
             }}
 
-            // Bỏ chọn văn bản sau khi sao chép
+            // Deselect text after copying
             sel.removeAllRanges();
         }}
     </script>
@@ -293,7 +293,7 @@ def main():
     with open(out_html, "w", encoding="utf-8") as f:
         f.write(full_html)
 
-    print(f"Đã lưu: {out_html}")
+    print(f"Saved: {out_html}")
 
 
 if __name__ == "__main__":

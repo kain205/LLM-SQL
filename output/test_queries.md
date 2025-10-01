@@ -79,60 +79,60 @@
     - Model C: Pending
 
 15. Which area has the most violations?
-    - Model A: Pending
-    - Model B: Pending
+    - Model A: Wrong
+    - Model B: OK
     - Model C: Pending
 
 ### 4) Complex Queries
 16. Which employee has committed violations in the most different areas?
-    - Model A: Pending
-    - Model B: Pending
+    - Model A: OK, but return 1 people but 3 people tie in this question
+    - Model B: OK, but return 1 people but 3 people tie in this question
     - Model C: Pending
 
 17. List employees who have committed at least 3 violations and have at least 1 violation "In Progress".
     - Model A: Pending
-    - Model B: Pending
+    - Model B: OK
     - Model C: Pending
 
 18. What is the resolution rate of violations for each department?
     - Model A: Pending
-    - Model B: Pending
+    - Model B: OK
     - Model C: Pending
 
-19. Which employees have committed violations in both the office and production areas?
+19. Which employees have committed violations in both the office and construction areas?
     - Model A: Pending
-    - Model B: Pending
+    - Model B: OK
     - Model C: Pending
 
 20. What is the average time from when a violation occurs until it is resolved?
     - Model A: Pending
-    - Model B: Pending
+    - Model B: correct no_answer
     - Model C: Pending
 
 ### 5) Edge Cases & Special Tests
 21. Has anyone committed the same error multiple times?
     - Model A: Pending
-    - Model B: Pending
+    - Model B: OK
     - Model C: Pending
 
 22. List violations that occurred on the weekend.
     - Model A: Pending
-    - Model B: Pending
+    - Model B: OK
     - Model C: Pending
 
 23. Who is the only person to have violated the "smoking in the workshop" rule?
     - Model A: Pending
-    - Model B: Pending
+    - Model B: NO
     - Model C: Pending
 
 24. Are there any departments with no violations?
     - Model A: Pending
-    - Model B: Pending
+    - Model B: OK
     - Model C: Pending
 
 25. What time of day do violations most often occur?
     - Model A: Pending
-    - Model B: Pending
+    - Model B: OK
     - Model C: Pending
 
 ---

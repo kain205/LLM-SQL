@@ -44,8 +44,8 @@ def setup_vanna():
 vn = setup_vanna()
 
 # --- Streamlit UI ---
-st.title("Bảng theo dõi vi phạm")
-st.write("Sử dụng Vanna để truy vấn database bằng ngôn ngữ tự nhiên.")
+st.title("Violation Tracking Table")
+st.write("Use Vanna to query the database using natural language.")
 
 # Display the full table as in the original app
 @st.cache_data
@@ -74,7 +74,7 @@ for message in st.session_state.messages:
             st.plotly_chart(message["fig"])
 
 # Accept user input
-if user_question := st.chat_input("Hôm nay có mấy người vi phạm?"):
+if user_question := st.chat_input("How many people violated today?"):
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": user_question})
     # Display user message in chat message container
@@ -83,7 +83,7 @@ if user_question := st.chat_input("Hôm nay có mấy người vi phạm?"):
 
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
-        with st.spinner("Đang xử lý câu hỏi..."):
+        with st.spinner("Processing your question..."):
             try:
                 # This is the core Vanna function that replaces the entire Haystack pipeline
                 sql, df, fig = vn.ask(question=user_question, print_results=False)
