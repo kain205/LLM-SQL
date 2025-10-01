@@ -2,4 +2,4 @@ test.py
 .env
 output/logs/
 output/report.html
-__pycache__/
+template/__pycache__/
